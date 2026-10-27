@@ -47,6 +47,26 @@ computador ligado. Ha dois jeitos usando so o tablet na maior parte do tempo:
 2. No tablet, instale o app **Windows App / Remote Desktop** e conecte no VPS.
 3. Faca os passos 1 a 4 do Jeito A dentro do VPS e deixe o MT5 aberto.
 
+## Conferindo as primeiras ordens
+
+No canto do grafico o robo escreve o estado da mesa (aberta ou fechada, stops
+do dia, bloco de 25) e uma linha por ativo dizendo o que viu. Quando abrir uma
+ordem, confira na aba Negociacao:
+
+1. **Stop:** passe o dedo/mouse no preco do stop. A perda ate ele deve ficar
+   perto de US$ 80 (um pouco menos, porque o lote e arredondado para baixo).
+2. **Alvo:** a distancia entrada-alvo deve ser 3 vezes a distancia
+   entrada-stop.
+3. **Comentario:** a ordem aparece como `PregaoVirtual 3R`.
+
+Mensagens comuns na linha do ativo:
+
+- `ativo nao existe nesta corretora`: o nome do ativo e diferente na sua
+  conta (ex.: `BTCUSD` pode nao existir). Ajuste o parametro de ativos.
+- `lote minimo arriscaria mais que o stop definido`: o stop tecnico ficou
+  largo demais para US$ 80 com o menor lote. A ordem e pulada de proposito.
+- `ordem recusada: ...`: copie a frase e mande para o Claude.
+
 ## Seguranca
 
 - Nunca envie a senha da corretora por chat, e-mail ou mensagem. Digite so

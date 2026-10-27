@@ -17,7 +17,7 @@
 //| Volume here is the broker's tick volume.                         |
 //+------------------------------------------------------------------+
 #property copyright "Pregao Virtual"
-#property version   "1.00"
+#property version   "1.01"
 #property description "Metodo da agencia Pregao Virtual: regioes de interesse, preco e volume, stop fixo, alvo 3R, maximo de 2 stops por dia. So conta demo por padrao."
 
 #include <Trade\Trade.mqh>
@@ -164,8 +164,8 @@ void Profile(const MqlRates &r[], const int from, const int to, double &poc, dou
    double total = 0.0;
    for(int i = from; i <= to; i++)
      {
-      int a = (int)MathMax(0, MathFloor((r[i].low - lo) / step));
-      int z = (int)MathMin(nb - 1, MathFloor((r[i].high - lo) / step));
+      int a = (int)MathMax(0.0, MathFloor((r[i].low - lo) / step));
+      int z = (int)MathMin((double)(nb - 1), MathFloor((r[i].high - lo) / step));
       double v = (double)r[i].tick_volume;
       if(v <= 0) v = 1;
       double share = v / (z - a + 1);
@@ -200,7 +200,7 @@ int Signal(const string sym, const int bias, double &stopPrice, double &atrNow, 
    VolSma(r, n, vs);
    int last = n - 1;
    atrNow = a[last];
-   int first = MathMax(InpBoxBars + ATR_N, last - InpZoneLife);
+   int first = (int)MathMax(InpBoxBars + ATR_N, last - InpZoneLife);
    int nRegions = 0;
    for(int i = first; i <= last; i++)
      {
@@ -238,7 +238,7 @@ int Signal(const string sym, const int bias, double &stopPrice, double &atrNow, 
          if(!touched) continue;
          double pbVol = 0;
          for(int k = peakIdx + 1; k <= j; k++) pbVol += (double)r[k].tick_volume;
-         double pbAvg = pbVol / (j - peakIdx), impAvg = impVol / MathMax(1, impN);
+         double pbAvg = pbVol / (j - peakIdx), impAvg = impVol / (impN > 0 ? impN : 1);
          bool quiet = impAvg == 0 || pbAvg < InpTestVol * impAvg;
          int against = -1;
          for(int k = j - 1; k > peakIdx && against < 0; k--)
@@ -365,7 +365,9 @@ void Evaluate(const int s, const bool deskOpen)
    double lots = LotsFor(sym, risk);
    if(lots <= 0) { g_status[s] = sym + ": lote minimo arriscaria mais que o stop definido"; return; }
    string comment = "PregaoVirtual 3R";
+   trade.SetTypeFillingBySymbol(sym);                                     // each symbol accepts its own filling mode
    bool ok = (d > 0) ? trade.Buy(lots, sym, 0, sl, tp, comment) : trade.Sell(lots, sym, 0, sl, tp, comment);
+   ok = ok && (trade.ResultRetcode() == TRADE_RETCODE_DONE || trade.ResultRetcode() == TRADE_RETCODE_PLACED);
    g_status[s] = sym + ": " + (ok ? (d > 0 ? "COMPRA " : "VENDA ") + DoubleToString(lots, 2) + " lotes, stop " + DoubleToString(sl, digits) +
                  ", alvo " + DoubleToString(tp, digits) + "; " + why
                  : "ordem recusada: " + trade.ResultRetcodeDescription());

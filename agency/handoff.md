@@ -31,7 +31,7 @@ Um sistema de trade que:
 ## Onde esta tudo
 
 Repositorio: `schipanskibueno-rgb/day-trader-skill`, branch
-`ccr-3497652c-mvjbc0` (sem PR aberto). Testes:
+`claude/practical-keller-hauv05` (antes `ccr-3497652c-mvjbc0`; sem PR aberto). Testes:
 `python3 -m unittest discover -s tests` (343 passando). O teste
 `tests/test_repo.py` limita as pastas da raiz: arquivos novos vao em
 `agency/`, `docs/` ou `tests/`.
