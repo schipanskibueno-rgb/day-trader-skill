@@ -1,0 +1,57 @@
+# Robo Pregao Virtual para MetaTrader 5
+
+`PregaoVirtual.mq5` e o metodo da agencia Pregao Virtual como robo (Expert
+Advisor) do MetaTrader 5:
+
+- **Macro H1:** fluxo de topos e fundos, CHoCH e o controle do ultimo volume
+  alto. So opera quando fluxo e controle concordam.
+- **Micro M15:** lateralizacao de 16 candles abandonada com candle largo e
+  volume alto vira regiao de interesse, marcada pelo volume profile (POC, VAL,
+  VAH). Entrada no retorno a regiao com menos volume que o impulso e candle de
+  absorcao.
+- **Gestao:** stop de valor fixo (padrao US$ 80, na moeda da conta), alvo 3R
+  sem fechar antes, no maximo 2 stops por dia. Depois disso nao abre mais nada
+  ate o dia seguinte do servidor. Mostra os blocos de 25 trades no grafico.
+- **Trava:** so funciona em conta **demo**. Para conta real seria preciso mudar
+  `InpAllowReal` de proposito.
+
+O volume no MT5 e o volume de ticks da corretora. A agencia usa o volume dos
+futuros da CME, entao os sinais podem nao ser identicos aos da pagina.
+
+## O robo nao roda no celular nem no tablet
+
+O app do MT5 para Android e iOS nao executa robos. Ele precisa de um MT5 de
+computador ligado. Ha dois jeitos usando so o tablet na maior parte do tempo:
+
+### Jeito A: computador emprestado uma vez + VPS da MetaQuotes (cerca de US$ 15 por mes)
+
+1. Num computador Windows, instale o MetaTrader 5 de metatrader5.com e entre
+   na sua conta demo (Arquivo > Abrir uma conta / Conectar a conta).
+2. Arquivo > Abrir pasta de dados > MQL5 > Experts. Copie `PregaoVirtual.mq5`
+   para la.
+3. No MT5, abra o MetaEditor (F4), abra o arquivo e aperte **Compilar (F7)**.
+   Se aparecer erro, copie a mensagem e mande para o Claude.
+4. Abra um grafico qualquer (ex.: EURUSD M15), arraste o robo
+   **PregaoVirtual** do Navegador para o grafico, marque "Permitir Algo
+   Trading" e confira os parametros (stop, ativos). Ligue o botao
+   **Algo Trading** na barra de cima.
+5. Clique com o botao direito na conta (Navegador) > **Registrar um servidor
+   virtual**, escolha o plano e migre o ambiente. A partir dai o robo roda 24h
+   na VPS e o computador pode ser desligado.
+6. No tablet, abra o app MT5 com a mesma conta: as ordens do robo aparecem em
+   Negociacao e Historico.
+
+### Jeito B: Windows na nuvem acessado pelo tablet
+
+1. Alugue um VPS Windows em qualquer provedor.
+2. No tablet, instale o app **Windows App / Remote Desktop** e conecte no VPS.
+3. Faca os passos 1 a 4 do Jeito A dentro do VPS e deixe o MT5 aberto.
+
+## Seguranca
+
+- Nunca envie a senha da corretora por chat, e-mail ou mensagem. Digite so
+  dentro do MT5.
+- Se ja enviou, troque a senha no MT5: Ferramentas > Opcoes > Servidor > Alterar.
+- O metodo ainda nao tem vantagem comprovada nos testes (ver a aba Corretora da
+  agencia). Use em demo e avalie em blocos de 25 trades. Nao e recomendacao de
+  investimento.
