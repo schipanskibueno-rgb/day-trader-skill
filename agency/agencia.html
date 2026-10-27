@@ -3,10 +3,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: a trading floor at night. The 3D office takes the stage; a dark side panel reads like a terminal. */
+/* Layout: a trading floor at night. The 3D office takes the stage; the side panel reads like a terminal. */
 :root {
   --bg: #0b1016; --panel: #111922; --panel-2: #17212c; --line: #223040; --text: #e4ebf2; --muted: #8b9cae;
   --accent: #f2b544; --buy: #3fd08f; --sell: #ff6b6b; --hold: #9db0c4; --info: #6cb6ff;
+  --trade: #2dd4bf; --pesquisa: #a78bfa; --economia: #60a5fa; --lab: #f2b544; --direcao: #f472b6;
   --display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -19,45 +20,49 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
 .app { min-height: 100%; display: flex; flex-direction: column; }
 .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; display: flex; flex-wrap: wrap; align-items: center;
-       gap: 6px 16px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px));
+       gap: 6px 14px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px));
        padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--bg); border-bottom: 1px solid var(--line); }
 .brand { font: 700 18px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
 .brand .led { width: 10px; height: 10px; border-radius: 50%; background: var(--buy); box-shadow: 0 0 10px var(--buy); }
 .brand .led.off { background: var(--muted); box-shadow: none; }
 .brand small { font: 500 11px/1 var(--mono); color: var(--muted); letter-spacing: 0; text-transform: none; }
 .status { color: var(--muted); font: 12px/1.3 var(--mono); }
-.chip { font: 600 12px/1 var(--mono); padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--hold); }
+.chip { font: 600 12px/1 var(--mono); padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--hold); white-space: nowrap; }
 .chip.on { color: var(--buy); border-color: color-mix(in srgb, var(--buy) 45%, var(--line)); }
 .chip.off { color: var(--sell); border-color: color-mix(in srgb, var(--sell) 45%, var(--line)); }
 .spacer { flex: 1; }
 .ticker { overflow: hidden; border-bottom: 1px solid var(--line); background: var(--panel); white-space: nowrap; }
-.track { display: inline-flex; gap: 28px; padding: 7px 0; font: 12px/1 var(--mono); animation: roll 60s linear infinite; }
+.track { display: inline-flex; gap: 28px; padding: 7px 0; font: 12px/1 var(--mono); animation: roll 70s linear infinite; }
 .track span b { font-weight: 500; color: var(--text); } .track span { color: var(--muted); }
 @keyframes roll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .track { animation: none; } }
 
 .layout { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
-@media (min-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr) 400px; } }
-.stage { position: relative; min-height: 420px; height: 58vh; background: #070b10; overflow: hidden; }
-@media (min-width: 980px) { .stage { height: auto; min-height: 640px; } }
+@media (min-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr) 410px; } }
+.stage { position: relative; min-height: 440px; height: 60vh; background: #070b10; overflow: hidden; }
+@media (min-width: 980px) { .stage { height: auto; min-height: 660px; } }
 #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.tag { position: absolute; transform: translate(-50%, -100%); display: grid; justify-items: center; gap: 4px; }
-.tag .name { font: 600 11px/1 var(--body); padding: 3px 7px; border-radius: 6px; background: rgba(8, 12, 18, .78);
+.tag { position: absolute; left: 0; top: 0; display: grid; justify-items: center; gap: 4px; will-change: transform; }
+.tag .name { font: 600 11px/1 var(--body); padding: 3px 7px; border-radius: 6px; background: rgba(8, 12, 18, .8);
              color: var(--text); border: 1px solid rgba(255, 255, 255, .08); white-space: nowrap; }
 .tag .name i { font-style: normal; color: var(--muted); font-weight: 400; }
-.bubble { max-width: 230px; font: 12px/1.35 var(--body); background: #f4f6f8; color: #111821; padding: 7px 10px;
+.bubble { max-width: 240px; font: 12px/1.35 var(--body); background: #f4f6f8; color: #111821; padding: 7px 10px;
           border-radius: 10px; box-shadow: 0 6px 18px rgba(0, 0, 0, .35); opacity: 0; transition: opacity .3s; position: relative; }
 .bubble.show { opacity: 1; }
 .bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); border: 6px solid transparent;
                  border-bottom: 0; border-top-color: #f4f6f8; }
-.cams { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
-.cams button, .tabs button { font: 600 12px/1 var(--body); color: var(--text); background: rgba(17, 25, 34, .9); border: 1px solid var(--line);
-                             border-radius: 8px; padding: 9px 12px; min-height: 36px; cursor: pointer; }
-.cams button:hover, .tabs button:hover { border-color: var(--accent); }
-button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.phase { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); top: 12px; font: 600 12px/1 var(--mono);
-         background: rgba(17, 25, 34, .9); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--accent); }
+.cams { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap;
+        right: max(12px, env(safe-area-inset-right, 0px)); }
+.cams button, .tabs button, .btn { font: 600 12px/1 var(--body); color: var(--text); background: rgba(17, 25, 34, .92); border: 1px solid var(--line);
+                                   border-radius: 8px; padding: 9px 12px; min-height: 36px; cursor: pointer; }
+.cams button:hover, .tabs button:hover, .btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: #1a1205; border-color: var(--accent); }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.phase { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); top: 12px; font: 600 12px/1.2 var(--mono);
+         background: rgba(17, 25, 34, .92); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--accent); max-width: 70%; }
+.closed-banner { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: color-mix(in srgb, var(--sell) 22%, var(--panel));
+                 border: 1px solid var(--sell); color: var(--text); border-radius: 10px; padding: 8px 12px; font: 600 12px/1.3 var(--body); text-align: center; }
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; background: rgba(7, 11, 16, .72); }
 .overlay p { max-width: 420px; margin: 0; color: var(--muted); }
 .overlay h2 { font: 600 18px/1.2 var(--display); margin: 0 0 8px; color: var(--text); }
@@ -75,14 +80,12 @@ h3 { font: 600 13px/1.2 var(--display); text-transform: uppercase; letter-spacin
 .muted { color: var(--muted); } .small { font-size: 12px; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .pos { color: var(--buy); } .neg { color: var(--sell); }
-
 .line { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; padding: 8px; border-radius: 10px; }
 .line.now { background: var(--panel-2); outline: 1px solid var(--accent); }
-.av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 700 12px/1 var(--display); color: #0b1016; }
+.av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 700 12px/1 var(--display); color: #0b1016; flex: none; }
 .who { font-weight: 600; } .who i { font-style: normal; color: var(--muted); font-weight: 400; font-size: 12px; }
-
 .kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.kpi { background: var(--panel-2); border-radius: 10px; padding: 10px; }
+.kpi { background: var(--panel-2); border-radius: 10px; padding: 10px; min-width: 0; }
 .kpi b { display: block; font: 600 18px/1.2 var(--mono); }
 .kpi span { font-size: 12px; color: var(--muted); }
 .rows { display: grid; gap: 6px; }
@@ -92,26 +95,36 @@ h3 { font: 600 13px/1.2 var(--display); text-transform: uppercase; letter-spacin
 .pill.buy { background: color-mix(in srgb, var(--buy) 18%, transparent); color: var(--buy); }
 .pill.sell { background: color-mix(in srgb, var(--sell) 18%, transparent); color: var(--sell); }
 .pill.hold { background: color-mix(in srgb, var(--hold) 14%, transparent); color: var(--hold); }
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { text-align: left; font: 500 11px/1 var(--body); color: var(--muted); padding: 6px; border-bottom: 1px solid var(--line); }
-td { padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
-td.r, th.r { text-align: right; }
+.card { background: var(--panel-2); border-radius: 12px; padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.card .head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; font-family: var(--mono); }
+.note { font-size: 12px; color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; margin: 0; }
 .news a { color: var(--text); text-decoration: none; } .news a:hover { text-decoration: underline; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--hold); margin-right: 6px; }
 .dot.up { background: var(--buy); } .dot.down { background: var(--sell); }
-.card { background: var(--panel-2); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.stops { display: flex; gap: 6px; align-items: center; }
+.stops i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--sell); display: inline-block; }
+.stops i.hit { background: var(--sell); }
+.sector { font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; padding-top: 4px; }
 .team { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .member { text-align: left; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; color: var(--text);
-          font: inherit; cursor: pointer; display: grid; gap: 4px; }
+          font: inherit; cursor: pointer; display: grid; gap: 4px; min-width: 0; }
 .member.sel { border-color: var(--accent); }
-.note { font-size: 12px; color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; }
+.member.away { opacity: .55; }
+.form { display: grid; gap: 10px; }
+.form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.form input { font: 500 16px/1 var(--mono); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-height: 42px; }
+.tog { display: flex; gap: 8px; align-items: center; font-size: 13px; }
 svg.spark { width: 100%; height: 70px; display: block; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--text); color: var(--bg);
+         padding: 10px 16px; border-radius: 10px; font-weight: 600; z-index: 20; max-width: calc(100% - 32px); }
 </style>
 
 <div class="app">
   <header class="bar">
-    <div class="brand"><span class="led off" id="led"></span>Pregao Virtual <small>agencia de operacoes simulada</small></div>
+    <div class="brand"><span class="led off" id="led"></span>Pregao Virtual <small>agencia de trade simulada</small></div>
+    <span class="chip" id="deskChip">mesa: -</span>
     <span class="chip" id="climate">clima: -</span>
     <span class="spacer"></span>
     <span class="status" id="status">Conectando ao banco de dados da agencia...</span>
@@ -122,10 +135,13 @@ svg.spark { width: 100%; height: 70px; display: block; }
       <canvas id="scene"></canvas>
       <div id="labels"></div>
       <div class="phase" id="phase">Expediente</div>
+      <div class="closed-banner" id="closedBanner" hidden></div>
       <div class="cams">
         <button id="camAll">Visao geral</button>
-        <button id="camDesk">Mesa de operacoes</button>
-        <button id="camMeet">Sala de reuniao</button>
+        <button id="camTrade">Trade</button>
+        <button id="camResearch">Pesquisa</button>
+        <button id="camEco">Economia</button>
+        <button id="camMeet">Reuniao</button>
       </div>
       <div class="overlay" id="overlay" hidden><div><h2 id="ovTitle"></h2><p id="ovText"></p></div></div>
     </section>
@@ -133,14 +149,16 @@ svg.spark { width: 100%; height: 70px; display: block; }
       <nav class="tabs" role="tablist">
         <button role="tab" data-tab="meeting" aria-selected="true">Reuniao</button>
         <button role="tab" data-tab="broker" aria-selected="false">Corretora</button>
-        <button role="tab" data-tab="market" aria-selected="false">Mercado</button>
-        <button role="tab" data-tab="news" aria-selected="false">Noticias</button>
+        <button role="tab" data-tab="markets" aria-selected="false">Mercados</button>
+        <button role="tab" data-tab="research" aria-selected="false">Pesquisa</button>
         <button role="tab" data-tab="team" aria-selected="false">Equipe</button>
+        <button role="tab" data-tab="settings" aria-selected="false">Ajustes</button>
       </nav>
       <div class="view" id="view"><p class="muted">Aguardando a primeira leitura do mercado.</p></div>
     </aside>
   </main>
 </div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -150,39 +168,50 @@ svg.spark { width: 100%; height: 70px; display: block; }
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-// ------------------------------------------------------------------ people and places
-const COLORS = { helena: "#e3b94f", otavio: "#5b8def", lia: "#b77cf0", rafa: "#f08a4b", bia: "#ef5f8b",
-                 kenji: "#39c0c8", marta: "#e5534b", teo: "#7bc96f", caio: "#9aabc0", nina: "#4fd1a5" };
-const LOOK = { helena: ["#e8c4a0", "#2b1d14", 1], otavio: ["#c68e62", "#3a3a3a", 0], lia: ["#f1d0b5", "#7a3e1d", 1],
-               rafa: ["#a8714a", "#1d140e", 0], bia: ["#8a5a3c", "#120c08", 1], kenji: ["#e9c9a4", "#0d0d10", 0],
-               marta: ["#f0cfb2", "#b7b0a6", 1], teo: ["#6b4630", "#0f0b08", 0], caio: ["#e2b896", "#5b3b22", 0],
-               nina: ["#c99b74", "#24160e", 1] };
+// ------------------------------------------------------------------ people, sectors and places
+const SECTOR = {
+  trade: { name: "Setor de Trade", color: "#2dd4bf", floor: "#14302d" },
+  pesquisa: { name: "Setor de Pesquisa", color: "#a78bfa", floor: "#241f3a" },
+  economia: { name: "Setor de Economia", color: "#60a5fa", floor: "#172a40" },
+  lab: { name: "Laboratorio", color: "#f2b544", floor: "#2e2716" },
+  direcao: { name: "Diretoria", color: "#f472b6", floor: "#2e1a28" }
+};
+const COLORS = { helena: "#f472b6", rafa: "#f08a4b", bia: "#e3b94f", duda: "#2dd4bf", marta: "#e5534b", teo: "#7bc96f",
+                 lia: "#b77cf0", sofia: "#8b5cf6", kenji: "#39c0c8", otavio: "#5b8def", paulo: "#38bdf8", caio: "#9aabc0", nina: "#4fd1a5" };
+const LOOK = { helena: ["#e8c4a0", "#2b1d14", 1], rafa: ["#a8714a", "#1d140e", 0], bia: ["#8a5a3c", "#120c08", 1],
+               duda: ["#f1d0b5", "#c46a2c", 1], marta: ["#f0cfb2", "#b7b0a6", 1], teo: ["#6b4630", "#0f0b08", 0],
+               lia: ["#f1d0b5", "#7a3e1d", 1], sofia: ["#c99b74", "#24160e", 1], kenji: ["#e9c9a4", "#0d0d10", 0],
+               otavio: ["#c68e62", "#3a3a3a", 0], paulo: ["#e2b896", "#5b3b22", 0], caio: ["#e2b896", "#5b3b22", 0], nina: ["#c99b74", "#24160e", 1] };
 const DEFAULT_PEOPLE = [
-  ["helena", "Helena", "Diretora"], ["otavio", "Otavio", "Economista"], ["lia", "Lia", "Pesquisadora de noticias"],
-  ["rafa", "Rafa", "Trader de cripto"], ["bia", "Bia", "Trader de bolsa"], ["kenji", "Kenji", "Analista quantitativo"],
-  ["marta", "Marta", "Gestora de risco"], ["teo", "Teo", "Operador da corretora"], ["caio", "Caio", "Desenvolvedor (laboratorio)"],
-  ["nina", "Nina", "Desenvolvedora (dados)"]].map(([id, name, role]) => ({ id, name, role }));
-// where each person works (they stand at their desk, facing -z)
-const STATION = { rafa: [-4.5, -4.1], bia: [-1.5, -4.1], kenji: [1.5, -4.1], marta: [4.5, -4.1],
-                  otavio: [-4.5, -0.1], lia: [-1.5, -0.1], caio: [1.5, -0.1], nina: [4.5, -0.1],
-                  helena: [11, -5.1], teo: [11, 1.9] };
-const PARTNER = { rafa: ["kenji", "marta", "bia"], bia: ["rafa", "marta", "otavio"], kenji: ["rafa", "caio", "marta"],
-                  marta: ["teo", "rafa", "helena"], otavio: ["lia", "helena", "bia"], lia: ["otavio", "rafa"],
-                  caio: ["nina", "kenji"], nina: ["caio", "teo"], helena: ["marta", "otavio", "kenji"], teo: ["marta", "nina"] };
-const MEET = { c: [-11, -3], r: 2.55, door: [-6.2, -3], inside: [-8.6, -3] };
-const COFFEE = [-1.5, 5.6], BOARD = [11.3, 5.4];
+  ["helena", "Helena", "Diretora", "direcao"], ["rafa", "Rafa", "Trader de BTC", "trade"], ["bia", "Bia", "Trader de ouro (XAU)", "trade"],
+  ["duda", "Duda", "Trader de forex", "trade"], ["marta", "Marta", "Gestora de risco", "trade"], ["teo", "Teo", "Operador da corretora", "trade"],
+  ["lia", "Lia", "Pesquisadora de noticias", "pesquisa"], ["sofia", "Sofia", "Pesquisadora de politica e eventos", "pesquisa"],
+  ["kenji", "Kenji", "Estatistico (blocos de 25)", "pesquisa"], ["otavio", "Otavio", "Economista (global)", "economia"],
+  ["paulo", "Paulo", "Economista (Brasil)", "economia"], ["caio", "Caio", "Desenvolvedor (laboratorio)", "lab"],
+  ["nina", "Nina", "Desenvolvedora (dados)", "lab"]].map(([id, name, role, sector]) => ({ id, name, role, sector }));
+// where each person works (standing desks, facing -z)
+const STATION = { rafa: [4, -6.2], bia: [7.6, -6.2], duda: [11.2, -6.2], marta: [5.6, -3], teo: [12.6, -3],
+                  lia: [-13.4, -6.2], sofia: [-9.8, -6.2], kenji: [-6.2, -6.2],
+                  otavio: [-13.6, 3.6], paulo: [-10, 3.6], helena: [14.4, 5.4], caio: [8.4, 3.2], nina: [11.6, 3.2] };
+const PARTNER = { rafa: ["marta", "bia"], bia: ["rafa", "duda", "marta"], duda: ["bia", "teo"], marta: ["teo", "rafa", "helena"], teo: ["marta", "duda"],
+                  lia: ["sofia", "otavio"], sofia: ["lia", "paulo", "kenji"], kenji: ["sofia", "caio"], otavio: ["paulo", "lia"],
+                  paulo: ["otavio", "sofia"], helena: ["marta", "otavio", "kenji"], caio: ["nina", "kenji"], nina: ["caio", "teo"] };
+const AISLE = -0.75, EXIT = [17.4, AISLE], MEET = { c: [-0.5, 4.2], r: 2.4, door: [-0.5, 0.6] };
+const COFFEE = [-4.5, -3.4];
 const MEET_EVERY = 150, LINE_SECONDS = 6.5;
 
-let state = null, people = DEFAULT_PEOPLE;
+let state = null, people = DEFAULT_PEOPLE, db = null, demoClosed = false;
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const fmt = (v, d = 2) => Number(v).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
 const sgn = (v, d = 2) => (v >= 0 ? "+" : "") + fmt(v, d);
-const money = (v, cur = "US$") => cur + " " + fmt(v, v >= 100 ? 0 : v >= 1 ? 2 : 4);
+const usd = v => (v < 0 ? "-US$ " : "US$ ") + fmt(Math.abs(v), 0);
 const when = t => new Date(t).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "agora" : m < 60 ? "ha " + m + " min" : "ha " + Math.floor(m / 60) + "h" + String(m % 60).padStart(2, "0"); };
-const pillOf = v => v.indexOf("COMPRA") === 0 ? "buy" : v.indexOf("VENDA") === 0 ? "sell" : "hold";
-const person = id => people.find(p => p.id === id) || { id, name: id, role: "" };
+const person = id => people.find(p => p.id === id) || DEFAULT_PEOPLE.find(p => p.id === id) || { id, name: id, role: "", sector: "lab" };
+const deskClosed = () => demoClosed || !!(state && state.desk && state.desk.today.closed);
+const flowWord = f => f > 0 ? "alta" : f < 0 ? "baixa" : "lateral";
+function toast(text) { const t = $("toast"); t.textContent = text; t.hidden = false; clearTimeout(toast.k); toast.k = setTimeout(() => { t.hidden = true; }, 3800); }
 
 // ------------------------------------------------------------------ data from the agency's database
 function showOverlay(title, text) { $("ovTitle").textContent = title; $("ovText").textContent = text; $("overlay").hidden = false; }
@@ -192,7 +221,7 @@ async function connect() {
     $("status").textContent = "sem conexao com o banco";
     return;
   }
-  const db = await window.claude.use("db");
+  db = await window.claude.use("db");
   if (!db) {
     showOverlay("Entre na sua conta", "Para ver a agencia com os dados do mercado, abra este link logado no claude.ai.");
     $("status").textContent = "banco indisponivel nesta visualizacao";
@@ -207,9 +236,7 @@ async function connect() {
   }, () => { $("status").textContent = "conexao com o banco perdida; recarregue a pagina"; });
 }
 
-function applyState() {
-  renderStatus(); renderTicker(); renderTab(); paintScreens();
-}
+function applyState() { renderStatus(); renderTicker(); if (tab !== "settings") renderTab(); paintScreens(); applyDesk(); }
 
 function renderStatus() {
   if (!state) return;
@@ -220,18 +247,20 @@ function renderStatus() {
   const c = state.climate, chip = $("climate");
   chip.textContent = "clima: " + c.label;
   chip.className = "chip" + (c.score >= 2 ? " on" : c.score <= -2 ? " off" : "");
+  const d = $("deskChip"), T = state.desk.today;
+  d.textContent = deskClosed() ? "mesa fechada" + (demoClosed ? " (simulacao)" : "") : "mesa aberta · stops " + T.stops + "/" + state.config.maxStopsPerDay;
+  d.className = "chip " + (deskClosed() ? "off" : "on");
 }
 setInterval(renderStatus, 30000);
 
 function renderTicker() {
   const t = $("ticker"); t.textContent = "";
   const items = [];
-  state.assets.forEach(a => items.push([a.short, money(a.price, a.cur), a.chg1d]));
-  state.macro.forEach(m => items.push([m.name, fmt(m.price, m.price > 1000 ? 0 : 2), m.chg1d * 100]));
-  if (state.fng) items.push(["Medo e ganancia", String(state.fng.value), null]);
+  state.markets.forEach(m => items.push([m.short, fmt(m.price, m.dec), m.chg24h]));
+  state.national.concat(state.global).forEach(m => items.push([m.name, fmt(m.price, m.price > 1000 ? 0 : 2), m.chg1d * 100]));
   for (let k = 0; k < 2; k++) items.forEach(([n, v, c]) => {
     const s = el("span"); s.append(n + " "); s.append(el("b", null, v));
-    if (c !== null) s.append(el("span", c >= 0 ? "pos" : "neg", " " + sgn(c) + "%"));
+    if (c !== null && c !== undefined) s.append(el("span", c >= 0 ? "pos" : "neg", " " + sgn(c) + "%"));
     t.append(s);
   });
 }
@@ -246,28 +275,36 @@ function setTab(name) {
 }
 function renderTab() {
   const v = $("view"); v.textContent = "";
+  if (tab === "settings") return viewSettings(v);
   if (!state) { v.append(el("p", "muted", "Aguardando a primeira leitura do mercado.")); return; }
-  ({ meeting: viewMeeting, broker: viewBroker, market: viewMarket, news: viewNews, team: viewTeam })[tab](v);
+  ({ meeting: viewMeeting, broker: viewBroker, markets: viewMarkets, research: viewResearch, team: viewTeam })[tab](v);
 }
 function avatar(id) { const a = el("div", "av", person(id).name[0]); a.style.background = COLORS[id] || "#888"; return a; }
+function kpi(label, value, cls) { const k = el("div", "kpi"); k.append(el("b", "num " + (cls || ""), value), el("span", null, label)); return k; }
+function stopsDots(n, max) { const s = el("span", "stops"); for (let i = 0; i < max; i++) s.append(el("i", i < n ? "hit" : "")); return s; }
 
 function viewMeeting(v) {
   v.append(el("h3", null, "Ata da reuniao · " + when(state.meeting.time)));
   v.append(el("p", "note", "Cada fala vem dos dados desta leitura. A reuniao e encenada no escritorio a cada " +
-    Math.round(MEET_EVERY / 60 * 10) / 10 + " minutos com a ata mais recente."));
-  state.meeting.lines.forEach((l, i) => {
+    (MEET_EVERY / 60) + " minutos" + (deskClosed() ? ", agora sem o setor de trade (mesa fechada)." : ".")));
+  lines().forEach((l, i) => {
     const row = el("div", "line" + (i === speaking ? " now" : "")); row.id = "line" + i;
     row.append(avatar(l.who));
-    const body = el("div"); const who = el("div", "who", person(l.who).name + " ");
+    const body = el("div"), who = el("div", "who", person(l.who).name + " ");
     who.append(el("i", null, person(l.who).role)); body.append(who, el("div", null, l.text)); row.append(body);
     v.append(row);
   });
+}
+// in closed mode the traders are not in the room
+function lines() {
+  const all = state.meeting.lines;
+  return deskClosed() ? all.filter(l => person(l.who).sector !== "trade") : all;
 }
 
 function spark(points, color) {
   const svgNS = "http://www.w3.org/2000/svg", s = document.createElementNS(svgNS, "svg");
   s.setAttribute("viewBox", "0 0 300 70"); s.setAttribute("preserveAspectRatio", "none"); s.classList.add("spark");
-  if (points.length < 2) return s;
+  if (!points || points.length < 2) return s;
   const lo = Math.min(...points), hi = Math.max(...points), span = hi - lo || 1;
   const xy = points.map((p, i) => [i / (points.length - 1) * 298 + 1, 66 - (p - lo) / span * 60]);
   const area = document.createElementNS(svgNS, "path");
@@ -277,118 +314,210 @@ function spark(points, color) {
   line.setAttribute("d", "M" + xy.map(p => p.join(",")).join("L")); line.setAttribute("fill", "none");
   line.setAttribute("stroke", color); line.setAttribute("stroke-width", "2"); line.setAttribute("vector-effect", "non-scaling-stroke");
   s.append(line);
-  const end = document.createElementNS(svgNS, "circle"); const last = xy[xy.length - 1];
-  end.setAttribute("cx", last[0]); end.setAttribute("cy", last[1]); end.setAttribute("r", "3"); end.setAttribute("fill", color);
-  s.append(end);
   return s;
 }
 
-function kpi(label, value, cls) { const k = el("div", "kpi"); k.append(el("b", "num " + (cls || ""), value), el("span", null, label)); return k; }
-
-function tradeRow(t, cur) {
-  const r = el("div", "row");
-  const left = el("div");
-  left.append(el("div", null, (t.dir > 0 ? "Compra " : "Venda ") + t.asset));
-  left.append(el("div", "small muted", "entrada " + money(t.entry || t.ref, cur) + " · stop " + money(t.stop, cur) + " · alvo " + money(t.take, cur)));
+function tradeRow(t) {
+  const r = el("div", "row"), left = el("div"), d = t.dec === undefined ? 2 : t.dec;
+  left.append(el("div", null, (t.dir > 0 ? "Compra " : "Venda ") + t.asset + (t.entryT ? " · " + when(t.entryT) : "")));
+  left.append(el("div", "small muted num", "entrada " + fmt(t.entry, d) + " · stop " + fmt(t.stop, d) + " · alvo " + fmt(t.take, d)));
   r.append(left);
-  if (t.r !== undefined && t.r !== null) r.append(el("b", "num " + (t.r > 0 ? "pos" : "neg"), sgn(t.r) + "R"));
-  else if (t.openR !== undefined && t.openR !== null) r.append(el("b", "num " + (t.openR >= 0 ? "pos" : "neg"), sgn(t.openR) + "R aberto"));
-  else r.append(el("span", "pill hold", "na proxima abertura"));
+  if (!t.open && t.usd !== null) r.append(el("b", "num " + (t.usd > 0 ? "pos" : "neg"), (t.usd > 0 ? "+" : "") + usd(t.usd) + " (" + sgn(t.r) + "R)"));
+  else if (t.open) r.append(el("b", "num " + (t.openUsd >= 0 ? "pos" : "neg"), "aberto " + (t.openUsd >= 0 ? "+" : "") + usd(t.openUsd)));
   return r;
 }
 
-function viewBroker(v) {
-  const L = state.broker.live, S = state.broker.sim;
-  v.append(el("h3", null, "Corretora virtual · desde " + state.founded.split("-").reverse().join("/")));
-  const k = el("div", "kpis");
-  k.append(kpi("patrimonio (US$ virtuais)", fmt(L.equity, 0)), kpi("retorno", sgn(L.ret) + "%", L.ret >= 0 ? "pos" : "neg"),
-           kpi("posicoes abertas", String(L.open.length)), kpi("operacoes encerradas", String(L.n)));
-  v.append(k);
-  v.append(el("p", "note", "Dinheiro de mentira, precos de verdade. Cada operacao arrisca 1% do patrimonio, com o stop e o alvo do robo. Nada vai para uma corretora real."));
-  const pend = L.pending || [];
-  v.append(el("h3", null, "Ordens para a proxima abertura"));
-  const pr = el("div", "rows");
-  if (!pend.length) pr.append(el("p", "muted small", "Nenhuma. A gestora de risco nao aprovou sinal nesta leitura."));
-  pend.forEach(o => pr.append(tradeRow(o, o.cur)));
-  v.append(pr);
-  if (L.open.length) { v.append(el("h3", null, "Posicoes abertas")); const o = el("div", "rows"); L.open.forEach(t => o.append(tradeRow(t))); v.append(o); }
-  if (L.closed.length) { v.append(el("h3", null, "Encerradas")); const c = el("div", "rows"); L.closed.forEach(t => c.append(tradeRow(t))); v.append(c); }
-
-  v.append(el("h3", null, "Simulacao: se a agencia operasse ha 12 meses"));
-  const k2 = el("div", "kpis");
-  k2.append(kpi("patrimonio final", fmt(S.equity, 0)), kpi("retorno", sgn(S.ret) + "%", S.ret >= 0 ? "pos" : "neg"),
-            kpi("operacoes / acerto", S.n + " / " + S.win + "%"), kpi("pior queda", "-" + fmt(S.maxDD, 1) + "%", "neg"));
-  v.append(k2);
-  v.append(spark(S.curve.map(p => p.eq), S.ret >= 0 ? "#3fd08f" : "#ff6b6b"));
-  v.append(el("p", "note", "Mesmas regras, decidindo vela a vela so com o que se sabia em cada dia. E um teste no passado: nao garante o futuro."));
-  const rs = el("div", "rows"); S.closed.slice(0, 12).forEach(t => rs.append(tradeRow(t))); v.append(rs);
+function blocksView(blocks, stopUsd) {
+  const wrap = el("div", "rows");
+  if (!blocks.length) { wrap.append(el("p", "muted small", "Nenhum trade encerrado ainda.")); return wrap; }
+  blocks.forEach((b, i) => {
+    const r = el("div", "row"), left = el("div");
+    left.append(el("div", null, "Bloco [" + (i + 1) + "] " + (b.done ? "completo" : "em andamento")));
+    left.append(el("div", "small muted", b.wins + " ganhos em " + b.n + " trades (equilibrio com alvo 3R: 25%)"));
+    r.append(left, el("b", "num " + (b.usd >= 0 ? "pos" : "neg"), (b.usd >= 0 ? "+" : "") + usd(b.usd)));
+    wrap.append(r);
+  });
+  return wrap;
 }
 
-function viewMarket(v) {
-  v.append(el("h3", null, "Sinais no grafico diario"));
-  const wrap = el("div", "table-wrap"), tb = el("table");
-  tb.innerHTML = "<thead><tr><th>Ativo</th><th class='r'>Preco</th><th class='r'>Dia</th><th>Sinal</th><th class='r'>Robo</th></tr></thead>";
-  const body = el("tbody");
-  state.assets.forEach(a => {
-    const tr = el("tr");
-    const n = el("td"); n.append(el("div", null, a.short), el("div", "small muted", a.name)); tr.append(n);
-    tr.append(el("td", "r num", money(a.price, a.cur)));
-    tr.append(el("td", "r num " + (a.chg1d >= 0 ? "pos" : "neg"), sgn(a.chg1d) + "%"));
-    const s = el("td"); s.append(el("span", "pill " + pillOf(a.verdict), a.verdict));
-    if (a.held) s.append(el("div", "small muted", "regra daria " + a.held.toLowerCase()));
-    tr.append(s);
-    tr.append(el("td", "r num " + (a.record && a.record.exp > 0 ? "pos" : "neg"), a.record ? sgn(a.record.exp) + "R" : "-"));
-    body.append(tr);
+function viewBroker(v) {
+  const D = state.desk, L = D.live, cfg = state.config, T = D.today;
+  v.append(el("h3", null, "Mesa de hoje · " + T.day.split("-").reverse().join("/")));
+  const st = el("div", "card"), head = el("div", "head");
+  head.append(el("b", deskClosed() ? "neg" : "pos", deskClosed() ? "Mesa fechada" : "Mesa aberta"));
+  const sd = el("span", "small muted"); sd.append("stops hoje ", stopsDots(T.stops, cfg.maxStopsPerDay)); head.append(sd);
+  st.append(head);
+  st.append(el("p", "note", deskClosed()
+    ? "Dois stops no dia: o setor de trade foi embora e so volta a operar na proxima abertura (00:00 UTC). O setor de pesquisa segue estudando."
+    : "Stop de " + usd(cfg.stopUsd) + " por operacao, alvo 3R (" + usd(cfg.stopUsd * 3) + ") sem fechamento antes, no maximo " + cfg.maxStopsPerDay + " stops por dia."));
+  v.append(st);
+  v.append(el("h3", null, "Corretora virtual · desde " + state.founded.split("-").reverse().join("/")));
+  const k = el("div", "kpis");
+  k.append(kpi("patrimonio (conta de " + usd(cfg.capital) + ")", usd(L.equity)), kpi("resultado", (L.pnl >= 0 ? "+" : "") + usd(L.pnl), L.pnl >= 0 ? "pos" : "neg"),
+           kpi("posicoes abertas", String(L.open.length)), kpi("trades encerrados", String(L.n)));
+  v.append(k);
+  if (L.open.length) { v.append(el("h3", null, "Posicoes abertas")); const o = el("div", "rows"); L.open.forEach(t => o.append(tradeRow(t))); v.append(o); }
+  if (L.closed.length) { v.append(el("h3", null, "Encerradas")); const c = el("div", "rows"); L.closed.forEach(t => c.append(tradeRow(t))); v.append(c); }
+  if (!L.open.length && !L.closed.length) v.append(el("p", "muted small", "Nenhuma operacao desde a abertura da agencia. A mesa so entra quando o checklist inteiro se alinha."));
+  v.append(el("h3", null, "Blocos de 25 trades (ao vivo)"));
+  v.append(blocksView(L.blocks, cfg.stopUsd));
+
+  const S = D.sim;
+  v.append(el("h3", null, "Simulacao: ultimos 60 dias em 15m"));
+  const k2 = el("div", "kpis");
+  k2.append(kpi("trades / acerto", S.n + " / " + S.winRate + "%"), kpi("resultado", (S.pnl >= 0 ? "+" : "") + usd(S.pnl), S.pnl >= 0 ? "pos" : "neg"),
+            kpi("media por trade", sgn(S.expectancy) + "R", S.expectancy >= 0 ? "pos" : "neg"), kpi("dias fechados por 2 stops", String(S.closedDays.length)));
+  v.append(k2);
+  if (S.curve.length > 1) v.append(spark([cfg.capital].concat(S.curve.map(p => p.eq)), S.pnl >= 0 ? "#3fd08f" : "#ff6b6b"));
+  v.append(blocksView(S.blocks, cfg.stopUsd));
+  const ss = el("div", "rows"); S.closed.forEach(t => ss.append(tradeRow(t))); v.append(ss);
+
+  const Y = D.study;
+  v.append(el("h3", null, "Validacao fractal: mesmas regras em 1h, 2 anos"));
+  const k3 = el("div", "kpis");
+  k3.append(kpi("trades / acerto", Y.n + " / " + Y.winRate + "%"), kpi("resultado", (Y.pnl >= 0 ? "+" : "") + usd(Y.pnl), Y.pnl >= 0 ? "pos" : "neg"),
+            kpi("media por trade", sgn(Y.expectancy) + "R", Y.expectancy >= 0 ? "pos" : "neg"), kpi("maior queda", usd(Y.maxDD), "neg"));
+  v.append(k3);
+  if (Y.curve.length > 1) v.append(spark([cfg.capital].concat(Y.curve.map(p => p.eq)), Y.pnl >= 0 ? "#3fd08f" : "#ff6b6b"));
+  v.append(el("p", "note", "Dinheiro de mentira, precos de verdade. Com alvo de 3R o ponto de equilibrio e 25% de acerto. Teste no passado nao garante o futuro; nada vai para uma corretora real."));
+}
+
+function viewMarkets(v) {
+  v.append(el("h3", null, "Mercados da mesa · micro 15m, macro 1h"));
+  state.markets.forEach(m => {
+    const c = el("div", "card"), head = el("div", "head");
+    const t = el("div"); t.append(el("b", null, m.label)); t.append(el("div", "small muted", m.open ? "aberto" : "fechado agora"));
+    const p = el("div"); p.style.textAlign = "right";
+    p.append(el("div", "num", fmt(m.price, m.dec)), el("div", "small num " + (m.chg24h >= 0 ? "pos" : "neg"), sgn(m.chg24h) + "% 24h"));
+    head.append(t, p); c.append(head);
+    c.append(el("span", "pill " + (m.best ? (m.best.dir > 0 ? "buy" : "sell") : "hold"), m.status));
+    const kv = el("dl", "kv"), add = (a, b) => { kv.append(el("dt", null, a), el("dd", null, b)); };
+    const mc = m.macro;
+    if (mc) {
+      add("Fluxo 1h", flowWord(mc.flow) + (mc.choch ? " (CHoCH de " + mc.choch + ")" : ""));
+      add("Controle do ultimo volume", mc.control ? (mc.control.dir > 0 ? "comprador" : "vendedor") + (mc.control.lost ? " (virou)" : "") : "-");
+      add("Clareza macro", mc.bias ? flowWord(mc.bias) : "sem clareza");
+      add("Saude da tendencia", mc.health > 0 ? "impulsos ganhando amplitude" : mc.health < 0 ? "impulsos perdendo amplitude" : "-");
+    }
+    add("Volume relativo (15m)", m.relVol === null ? "-" : fmt(m.relVol, 2) + "x");
+    m.regions.forEach(z => add("Regiao " + (z.dir > 0 ? "compradora" : "vendedora") + (z.aligned ? " alinhada" : ""),
+      "VAL " + fmt(z.val, m.dec) + " · POC " + fmt(z.poc, m.dec) + " · VAH " + fmt(z.vah, m.dec)));
+    if (m.study) add("Historico 1h (2 anos)", m.study.n + " trades, " + sgn(m.study.exp) + "R");
+    c.append(kv);
+    c.append(spark(m.spark, m.chg24h >= 0 ? "#3fd08f" : "#ff6b6b"));
+    v.append(c);
   });
-  tb.append(body); wrap.append(tb); v.append(wrap);
-  v.append(el("p", "note", "Robo = resultado medio por operacao do proprio robo nesse ativo, testado vela a vela sem olhar o futuro. So ha sinal onde ele e positivo."));
-  v.append(el("h3", null, "Economia e bolsas"));
+  v.append(el("h3", null, "Economia global e Brasil"));
   const rows = el("div", "rows");
-  state.macro.forEach(m => {
-    const r = el("div", "row"); const left = el("div"); left.append(el("div", null, m.name));
+  state.national.concat(state.global).forEach(m => {
+    const r = el("div", "row"), left = el("div"); left.append(el("div", null, m.name));
     left.append(el("div", "small muted num", "semana " + sgn(m.chg5d * 100) + "% · mes " + sgn(m.chg1m * 100) + "%"));
     const right = el("div"); right.style.textAlign = "right";
     right.append(el("div", "num", fmt(m.price, m.price > 1000 ? 0 : 2)), el("div", "small num " + (m.chg1d >= 0 ? "pos" : "neg"), sgn(m.chg1d * 100) + "%"));
     r.append(left, right); rows.append(r);
   });
   v.append(rows);
-  if (state.fng) v.append(el("p", "note", "Indice de medo e ganancia das cripto: " + state.fng.value + " (" + state.fng.label + "), uma semana atras " + state.fng.weekAgo + "."));
 }
 
-function viewNews(v) {
-  v.append(el("h3", null, "Manchetes lidas pela Lia"));
+function viewResearch(v) {
+  v.append(el("h3", null, "Melhores cenarios para " + (deskClosed() ? "a proxima abertura" : "agora")));
+  const rk = el("div", "rows");
+  state.research.ranking.forEach((r, i) => {
+    const row = el("div", "row"), left = el("div");
+    left.append(el("div", null, (i + 1) + ". " + r.asset + (r.dir ? (r.dir > 0 ? " · compra" : " · venda") : "")));
+    left.append(el("div", "small muted", r.why.join("; ") || "sem cenario"));
+    row.append(left, el("b", "num", fmt(r.score, 1))); rk.append(row);
+  });
+  v.append(rk);
+  v.append(el("p", "note", "Nota da pesquisa: soma clareza macro, regiao de interesse alinhada e perto do preco, saude da tendencia e historico. Nao e ordem: a mesa so entra com o checklist completo."));
+  v.append(el("h3", null, "Como o mercado reagiu a eventos (Sofia)"));
+  const ev = el("div", "rows news");
+  if (!state.research.events.length) ev.append(el("p", "muted small", "Nenhum evento politico ou de juros nas ultimas 48h."));
+  state.research.events.forEach(e => {
+    const r = el("div", "row"), left = el("div"), a = el("a", null, e.title); a.href = e.url; a.target = "_blank"; a.rel = "noopener";
+    left.append(a, el("div", "small muted", (e.source || "") + " · " + when(e.t)));
+    left.append(el("div", "small num", "desde a noticia: " + e.moves.map(x => x.asset + " " + sgn(x.pct) + "%").join(" · ")));
+    r.append(left); ev.append(r);
+  });
+  v.append(ev);
+  v.append(el("h3", null, "Manchetes (Lia)"));
   const list = el("div", "rows news");
   state.news.forEach(n => {
-    const r = el("div", "row"); const left = el("div");
-    const a = el("a", null, n.title); a.href = n.url; a.target = "_blank"; a.rel = "noopener";
-    const d = el("span", "dot" + (n.tone > 0 ? " up" : n.tone < 0 ? " down" : ""));
-    const t = el("div"); t.append(d, a); left.append(t);
+    const r = el("div", "row"), left = el("div"), a = el("a", null, n.title); a.href = n.url; a.target = "_blank"; a.rel = "noopener";
+    const t = el("div"); t.append(el("span", "dot" + (n.tone > 0 ? " up" : n.tone < 0 ? " down" : "")), a); left.append(t);
     left.append(el("div", "small muted", (n.source || "") + " · " + when(n.t) + " · " + n.tags.join(", ")));
     r.append(left); list.append(r);
   });
   v.append(list);
-  v.append(el("p", "note", "Bolinha verde = tom positivo, vermelha = negativo, cinza = neutro, por palavras-chave. A leitura e simples e erra com ironia ou contexto."));
+  v.append(el("h3", null, "Laboratorio (Caio): variantes em 1h, 2 anos"));
+  const lab = el("div", "rows");
+  [["Filtro macro completo (fluxo + controle)", state.lab.bias], ["So fluxo de pivos", state.lab.flow], ["Sem filtro macro", state.lab.none]].forEach(([n, x]) => {
+    const r = el("div", "row"), left = el("div"); left.append(el("div", null, n), el("div", "small muted", x.n + " trades, " + x.win + "% de acerto"));
+    r.append(left, el("b", "num " + (x.exp >= 0 ? "pos" : "neg"), sgn(x.exp) + "R")); lab.append(r);
+  });
+  v.append(lab);
+  v.append(el("p", "note", "A regra so muda depois de um bloco de 25 trades novos confirmar. Ajustar no passado para o resultado ficar bonito e a forma mais rapida de perder no futuro."));
 }
 
 function viewTeam(v) {
-  v.append(el("h3", null, "Equipe"));
-  const g = el("div", "team");
-  people.forEach(p => {
-    const b = el("button", "member" + (selected === p.id ? " sel" : ""));
-    const top = el("div", "who"); top.append(avatar(p.id)); top.style.display = "flex"; top.style.gap = "8px"; top.style.alignItems = "center";
-    top.append(el("span", null, p.name)); b.append(top, el("span", "small muted", p.role));
-    b.onclick = () => focusAgent(p.id);
-    g.append(b);
+  ["direcao", "trade", "pesquisa", "economia", "lab"].forEach(sec => {
+    const s = el("div", "sector", SECTOR[sec].name); s.style.color = SECTOR[sec].color; v.append(s);
+    const g = el("div", "team");
+    people.filter(p => p.sector === sec).forEach(p => {
+      const ag = agents.find(a => a.id === p.id), away = ag && ag.away;
+      const b = el("button", "member" + (selected === p.id ? " sel" : "") + (away ? " away" : ""));
+      const top = el("div", "who"); top.style.cssText = "display:flex;gap:8px;align-items:center";
+      top.append(avatar(p.id), el("span", null, p.name)); b.append(top, el("span", "small muted", p.role + (away ? " · foi para casa" : "")));
+      b.onclick = () => focusAgent(p.id);
+      g.append(b);
+    });
+    v.append(g);
   });
-  v.append(g);
   if (selected) {
     const p = person(selected), r = (state.agents || {})[selected] || {}, ag = agents.find(a => a.id === selected);
-    const c = el("div", "card");
-    const head = el("div", "who"); head.append(p.name + " "); head.append(el("i", null, p.role)); c.append(head);
+    const c = el("div", "card"), head = el("div", "who"); head.append(p.name + " "); head.append(el("i", null, p.role)); c.append(head);
     c.append(el("div", "small muted", "Agora: " + (ag ? ag.doing : r.task || "")));
     c.append(el("div", null, r.report || "Sem relatorio nesta leitura."));
-    v.append(c);
+    v.insertBefore(c, v.firstChild);
   }
+}
+
+function profileOf(capital, stopUsd) {
+  const daily = stopUsd * 2, pct = daily / capital * 100;
+  return { daily, pct, label: pct <= 2 ? "Conservador (1 a 2%)" : pct <= 3.5 ? "Regular (3%)" : pct <= 5 ? "Arrojado (4 a 5%)" : "Acima de 5%: fora do gerenciamento do material" };
+}
+function viewSettings(v) {
+  const cfg = state ? state.config : { capital: 5000, stopUsd: 80, maxStopsPerDay: 2 };
+  v.append(el("h3", null, "Quanto a agencia opera"));
+  const f = el("form", "form");
+  const lc = el("label", null, "Conta operacional (US$ virtuais)"), ic = el("input"); ic.id = "capital"; ic.type = "number"; ic.min = "100"; ic.step = "100"; ic.value = cfg.capital; ic.inputMode = "decimal"; lc.append(ic);
+  const ls = el("label", null, "Stop por operacao (US$)"), is = el("input"); is.id = "stopUsd"; is.type = "number"; is.min = "1"; is.step = "1"; is.value = cfg.stopUsd; is.inputMode = "decimal"; ls.append(is);
+  const out = el("div", "card");
+  const upd = () => {
+    const cap = +ic.value, st = +is.value; out.textContent = "";
+    if (!(cap > 0 && st > 0)) { out.append(el("span", "neg", "Digite valores maiores que zero.")); return; }
+    const p = profileOf(cap, st), kv = el("dl", "kv"), add = (a, b) => kv.append(el("dt", null, a), el("dd", null, b));
+    add("Alvo por operacao (3R)", usd(st * 3)); add("Risco diario (2 stops)", usd(p.daily) + " = " + fmt(p.pct, 1) + "%");
+    add("Perfil (material Excelencia Trading)", p.label);
+    out.append(kv);
+  };
+  ic.oninput = upd; is.oninput = upd; upd();
+  const save = el("button", "btn primary", "Salvar para a proxima leitura"); save.type = "submit";
+  f.append(lc, ls, out, save);
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const cap = +ic.value, st = +is.value;
+    if (!(cap >= 100 && st > 0 && st <= cap)) { toast("Use conta de pelo menos US$ 100 e stop menor que a conta."); return; }
+    if (!db) { toast("Sem conexao com o banco: abra pelo link logado no claude.ai."); return; }
+    try { await db.doc("agency/config").set({ capital: cap, stopUsd: st, savedAt: Date.now() }); toast("Salvo. Vale a partir da proxima leitura (ate 2h)."); }
+    catch (err) { toast("Nao foi possivel salvar: so o dono da pagina pode mudar os ajustes."); }
+  };
+  v.append(f);
+  v.append(el("p", "note", "Regras fixas do material: alvo minimo de 3 vezes o risco, sem fechar antes; maximo de 2 stops por dia, depois so no dia seguinte; resultados medidos em blocos de 25 trades. Os valores sao recalculados para todo o historico com a configuracao atual."));
+  v.append(el("h3", null, "Visual"));
+  const tg = el("label", "tog"), cb = el("input"); cb.type = "checkbox"; cb.id = "demoClosed"; cb.checked = demoClosed;
+  cb.onchange = () => { demoClosed = cb.checked; renderStatus(); applyDesk(); };
+  tg.append(cb, "Mostrar como fica a mesa fechada (so na sua tela, nao muda nada)"); v.append(tg);
 }
 
 // ------------------------------------------------------------------ 3D office
@@ -401,80 +530,84 @@ renderer.shadowMap.enabled = !small;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0a0f15");
-scene.fog = new THREE.Fog("#0a0f15", 38, 70);
+scene.fog = new THREE.Fog("#0a0f15", 42, 80);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
-camera.position.set(15, 17, 23);
+camera.position.set(4, 21, 25);
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 0.5, -1.5);
-controls.enableDamping = true; controls.maxPolarAngle = 1.38; controls.minDistance = 6; controls.maxDistance = 48;
-controls.autoRotate = !calm; controls.autoRotateSpeed = 0.35;
-canvas.addEventListener("pointerdown", () => { controls.autoRotate = false; });
+controls.enableDamping = true; controls.maxPolarAngle = 1.38; controls.minDistance = 6; controls.maxDistance = 55;
+controls.autoRotate = false;
 
-const hemi = new THREE.HemisphereLight("#c8dcff", "#2a2018", 1.15); scene.add(hemi);
-const sun = new THREE.DirectionalLight("#ffffff", 1.5);
-sun.position.set(10, 18, 12); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
-Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 16, bottom: -16 }); scene.add(sun);
-[[-4, -3], [4, -3], [-11, -3], [11, -3], [0, 4]].forEach(([x, z]) => {
-  const p = new THREE.PointLight("#ffd9a0", 0.9, 14); p.position.set(x, 4.2, z); scene.add(p);
-});
+scene.add(new THREE.HemisphereLight("#c8dcff", "#2a2018", 0.95));
+const sun = new THREE.DirectionalLight("#ffffff", 1.15);
+sun.position.set(8, 20, 14); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 18, bottom: -18 }); scene.add(sun);
 
 const mat = (c, extra) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.8, metalness: 0.05 }, extra || {}));
 function box(w, h, d, m, x, y, z, parent) {
   const g = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); g.position.set(x, y, z);
   g.castShadow = true; g.receiveShadow = true; (parent || scene).add(g); return g;
 }
-
-// floor, carpet zones, walls
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(36, 22), mat("#27313c"));
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(36, 19), mat("#252e39"));
 floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -1); floor.receiveShadow = true; scene.add(floor);
-const rug = (w, d, x, z, c) => { const r = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat(c)); r.rotation.x = -Math.PI / 2; r.position.set(x, 0.01, z); r.receiveShadow = true; scene.add(r); };
-rug(13, 7.5, 0, -2.6, "#212c38"); rug(8, 8, -11, -3, "#1f2a2a"); rug(6, 5, 11, -5.5, "#2a2420"); rug(6, 4.5, 11, 1.5, "#202a22");
+const sectorFloors = {}, sectorLights = {};
+function zone(key, x0, x1, z0, z1) {
+  const m = mat(SECTOR[key].floor), r = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), m);
+  r.rotation.x = -Math.PI / 2; r.position.set((x0 + x1) / 2, 0.01, (z0 + z1) / 2); r.receiveShadow = true; scene.add(r);
+  sectorFloors[key] = m;
+  const edge = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, 0.12), new THREE.MeshBasicMaterial({ color: SECTOR[key].color }));
+  edge.rotation.x = -Math.PI / 2; edge.position.set((x0 + x1) / 2, 0.02, z1 - 0.06); scene.add(edge);
+  const lights = [];
+  for (let x = x0 + 3; x < x1 - 1; x += 5) { const p = new THREE.PointLight("#ffe2b0", 0.9, 12); p.position.set(x, 4.2, (z0 + z1) / 2); scene.add(p); lights.push(p);
+  }
+  sectorLights[key] = lights;
+}
+zone("pesquisa", -17.8, -1, -9.8, -1.5); zone("trade", 1, 17.8, -9.8, -1.5);
+zone("economia", -17.8, -5.6, 0, 7.8); zone("lab", 5.6, 12.6, 0, 7.8); zone("direcao", 12.6, 17.8, 0, 7.8);
 const wallM = mat("#2e3a48");
-box(36, 5, 0.3, wallM, 0, 2.5, -10); box(0.3, 5, 22, wallM, -18, 2.5, -1); box(0.3, 5, 22, wallM, 18, 2.5, -1);
-// meeting room glass
+box(36, 5, 0.3, wallM, 0, 2.5, -10); box(0.3, 5, 19, wallM, -18, 2.5, -1);
+box(0.3, 5, 8.6, wallM, 18, 2.5, -5.5); box(0.3, 5, 7.6, wallM, 18, 2.5, 4.2);           // exit gap in the right wall
 const glass = new THREE.MeshStandardMaterial({ color: "#9fd3ff", transparent: true, opacity: 0.12, roughness: 0.1, metalness: 0.2 });
-box(8, 2.6, 0.06, glass, -11, 1.3, 1); box(0.06, 2.6, 2.9, glass, -7, 1.3, -5.55); box(0.06, 2.6, 2.9, glass, -7, 1.3, -0.45);
-box(8, 0.08, 0.1, mat("#3a4656"), -11, 2.62, 1); box(0.1, 0.08, 8, mat("#3a4656"), -7, 2.62, -3);
-// meeting table and chairs
-const table = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.08, 40), mat("#6b4a2f", { roughness: 0.5 }));
+box(0.08, 2.6, 8.3, glass, 0, 1.3, -5.65);                                                 // trade | research
+box(0.08, 2.6, 7.8, glass, -4.6, 1.3, 3.9); box(0.08, 2.6, 7.8, glass, 3.6, 1.3, 3.9);     // meeting room sides
+box(3.3, 2.6, 0.08, glass, -2.95, 1.3, 0.05); box(2.2, 2.6, 0.08, glass, 2.5, 1.3, 0.05);  // meeting room front, door in the middle
+const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.5), new THREE.MeshBasicMaterial({ color: "#22c55e" }));
+exitSign.position.set(17.8, 3.2, AISLE); exitSign.rotation.y = -Math.PI / 2; scene.add(exitSign);
+const table = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.08, 40), mat("#6b4a2f", { roughness: 0.5 }));
 table.position.set(MEET.c[0], 0.78, MEET.c[1]); table.castShadow = true; scene.add(table);
-const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 0.75, 16), mat("#2c333c")); leg.position.set(MEET.c[0], 0.38, MEET.c[1]); scene.add(leg);
+box(0.3, 0.75, 0.3, mat("#2c333c"), MEET.c[0], 0.38, MEET.c[1]);
+box(2.4, 1.0, 0.7, mat("#3a2a20"), COFFEE[0], 0.5, COFFEE[1] - 0.9);
 
-// desks with monitors (screens are canvases painted with the real data)
 const screens = {};
-function screen(id, w, h, x, y, z, ry, pw, ph) {
-  const c = document.createElement("canvas"); c.width = pw || 512; c.height = ph || Math.round((pw || 512) * h / w);
+function screen(id, w, h, x, y, z, ry, pw) {
+  const c = document.createElement("canvas"); c.width = pw || 256; c.height = Math.round(c.width * h / w);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
   m.position.set(x, y, z); m.rotation.y = ry || 0; scene.add(m);
-  const frame = box(w + 0.12, h + 0.12, 0.06, mat("#0d1116"), 0, 0, -0.04, m); frame.castShadow = false;
+  box(w + 0.12, h + 0.12, 0.06, mat("#0d1116"), 0, 0, -0.04, m).castShadow = false;
   screens[id] = { c, tex, ctx: c.getContext("2d"), mesh: m };
   return screens[id];
 }
-function desk(x, z, id) {
+function desk(id) {
+  const [x, z0] = STATION[id], z = z0 - 0.9;
   box(2.2, 0.06, 0.9, mat("#cfd6dc", { roughness: 0.6 }), x, 1.05, z);
   box(0.06, 1.05, 0.8, mat("#2a313a"), x - 1.0, 0.52, z); box(0.06, 1.05, 0.8, mat("#2a313a"), x + 1.0, 0.52, z);
-  screen(id, 0.95, 0.55, x - 0.45, 1.45, z - 0.25, 0, 256, 148);
-  screen(id + "2", 0.95, 0.55, x + 0.55, 1.45, z - 0.25, -0.15, 256, 148);
+  screen(id, 0.95, 0.55, x - 0.45, 1.45, z - 0.25, 0); screen(id + "2", 0.95, 0.55, x + 0.55, 1.45, z - 0.25, -0.15);
 }
-["rafa", "bia", "kenji", "marta", "otavio", "lia", "caio", "nina"].forEach(id => desk(STATION[id][0], STATION[id][1] - 0.9, id));
-desk(11, -6, "helena");
-// broker counter
-box(3.4, 1.1, 0.8, mat("#1d4b3a"), 11, 0.55, 1.0); box(3.6, 0.06, 1.0, mat("#d9e1e6"), 11, 1.12, 1.0);
-screen("broker", 2.2, 1.0, 11, 2.0, 0.55, 0, 512, 232);
-// big LED board, news wall, lab whiteboard, clock
-screen("led", 12, 3.4, 0, 3.0, -9.8, 0, 1400, 397);
-screen("newswall", 5.6, 2.6, 11, 3.1, -9.8, 0, 800, 371);
-const boardStand = box(0.08, 1.3, 0.08, mat("#2a313a"), BOARD[0], 0.65, BOARD[1] - 0.6);
-screen("lab", 2.6, 1.7, BOARD[0], 2.05, BOARD[1] - 0.6, -0.55, 620, 405);
-screen("clock", 1.6, 0.6, -11, 3.6, -9.8, 0, 320, 120);
-// coffee corner and plants
-box(2.4, 1.0, 0.7, mat("#3a2a20"), COFFEE[0], 0.5, COFFEE[1] + 0.9); box(0.4, 0.5, 0.35, mat("#9aa3ad", { metalness: 0.6 }), COFFEE[0] - 0.6, 1.25, COFFEE[1] + 0.9);
-function plant(x, z) {
-  box(0.5, 0.5, 0.5, mat("#d8d2c4"), x, 0.25, z);
-  const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), mat("#2f7a4a")); f.position.set(x, 0.95, z); f.castShadow = true; scene.add(f);
+Object.keys(STATION).forEach(desk);
+screen("led", 13, 3.2, 9.4, 3.0, -9.8, 0, 1500);
+screen("newswall", 8, 2.8, -12.6, 3.0, -9.8, 0, 900);
+screen("kenji_board", 4, 2.6, -3.2, 2.9, -9.8, 0, 520);
+screen("eco", 5.6, 2.4, -17.8, 2.4, 3.8, Math.PI / 2, 760);
+screen("lab", 4.2, 2.2, 5.7, 2.2, 4.4, Math.PI / 2, 620);
+screen("clock", 1.8, 0.6, 9.4, 4.85, -9.8, 0, 320);
+const signs = {};
+function sign(key, x, z, w) {
+  const s = screen("sign_" + key, w, 0.55, x, 4.1, z, 0, 640);
+  signs[key] = s;
+  paint("sign_" + key, (c, W, H) => { c.fillStyle = "#0b1016"; c.fillRect(0, 0, W, H); c.fillStyle = SECTOR[key].color;
+    c.font = "600 " + Math.round(H * 0.55) + "px 'Chakra Petch', sans-serif"; c.textBaseline = "middle"; c.fillText(SECTOR[key].name.toUpperCase(), 18, H / 2 + 2); });
 }
-[[-16.8, 6.8], [16.8, 6.8], [-6.4, 1.6], [16.8, -9], [6.8, -8.8]].forEach(p => plant(p[0], p[1]));
 
 // ------------------------------------------------------------------ painting the screens with real data
 function paint(id, draw) { const s = screens[id]; if (!s) return; s.ctx.save(); draw(s.ctx, s.c.width, s.c.height); s.ctx.restore(); s.tex.needsUpdate = true; }
@@ -482,106 +615,142 @@ function wrapText(ctx, text, x, y, maxW, lh, maxLines) {
   const words = String(text).split(" "); let line = "", n = 0;
   for (const w of words) {
     const test = line ? line + " " + w : w;
-    if (ctx.measureText(test).width > maxW && line) { ctx.fillText(line, x, y); y += lh; line = w; if (++n >= maxLines - 1) { line = line + "..."; break; } }
+    if (ctx.measureText(test).width > maxW && line) { ctx.fillText(line, x, y); y += lh; line = w; if (++n >= maxLines - 1) { line += "..."; break; } }
     else line = test;
   }
   if (line) ctx.fillText(line, x, y);
   return y + lh;
 }
-const VC = { buy: "#3fd08f", sell: "#ff6b6b", hold: "#9db0c4" };
+const dark = (c, W, H, col) => { c.fillStyle = col || "#06090d"; c.fillRect(0, 0, W, H); };
+function rowsScreen(id, title, rows, color) {
+  paint(id, (c, W, H) => {
+    dark(c, W, H);
+    if (title) { c.fillStyle = color || "#f2b544"; c.font = "600 15px 'Chakra Petch', sans-serif"; c.fillText(title, 10, 18); }
+    c.font = "14px 'IBM Plex Mono', monospace";
+    rows.slice(0, title ? 5 : 6).forEach((r, i) => {
+      const y = (title ? 40 : 22) + i * 21;
+      c.fillStyle = "#8b9cae"; c.fillText(String(r[0]).slice(0, 14), 10, y);
+      const v = String(r[1]); c.fillStyle = /^\+|COMPRA|alta|aberta/.test(v) ? "#3fd08f" : /^-|VENDA|baixa|fechad/.test(v) ? "#ff6b6b" : "#e4ebf2";
+      c.fillText(v, W - 10 - c.measureText(v).width, y);
+    });
+  });
+}
+function sparkScreen(id, title, pts) {
+  paint(id, (c, W, H) => {
+    dark(c, W, H);
+    c.fillStyle = "#8b9cae"; c.font = "14px 'IBM Plex Mono', monospace"; c.fillText(title || "", 10, 20);
+    if (!pts || pts.length < 2) return;
+    const lo = Math.min(...pts), hi = Math.max(...pts);
+    c.strokeStyle = pts[pts.length - 1] >= pts[0] ? "#3fd08f" : "#ff6b6b"; c.lineWidth = 2; c.beginPath();
+    pts.forEach((p, i) => { const x = 10 + i / (pts.length - 1) * (W - 20), y = H - 12 - (p - lo) / (hi - lo || 1) * (H - 44); i ? c.lineTo(x, y) : c.moveTo(x, y); });
+    c.stroke();
+  });
+}
 function paintScreens() {
   if (!state) return;
+  const closed = deskClosed(), mk = s => state.markets.find(m => m.short === s), cfg = state.config, T = state.desk.today;
   paint("led", (c, W, H) => {
-    c.fillStyle = "#05080c"; c.fillRect(0, 0, W, H);
-    c.fillStyle = "#f2b544"; c.font = "600 34px 'Chakra Petch', sans-serif"; c.fillText("SINAIS DO DIA · GRAFICO DIARIO", 30, 50);
-    c.fillStyle = "#8b9cae"; c.font = "22px 'IBM Plex Mono', monospace"; c.fillText("leitura " + when(state.updatedAt), W - 330, 48);
-    state.assets.forEach((a, i) => {
-      const col = i % 5, row = Math.floor(i / 5), x = 30 + col * 272, y = 110 + row * 140;
-      c.fillStyle = "#0e151d"; c.fillRect(x, y - 30, 256, 120);
-      c.fillStyle = "#e4ebf2"; c.font = "600 30px 'Chakra Petch', sans-serif"; c.fillText(a.short, x + 14, y + 6);
-      c.font = "22px 'IBM Plex Mono', monospace"; c.fillStyle = a.chg1d >= 0 ? "#3fd08f" : "#ff6b6b";
-      c.fillText(sgn(a.chg1d) + "%", x + 150, y + 6);
-      c.fillStyle = "#8b9cae"; c.fillText(money(a.price, a.cur), x + 14, y + 40);
-      c.fillStyle = VC[pillOf(a.verdict)]; c.font = "600 24px 'IBM Plex Mono', monospace"; c.fillText(a.verdict, x + 14, y + 74);
+    dark(c, W, H, "#05080c");
+    if (closed) {
+      c.fillStyle = "#ff6b6b"; c.font = "700 70px 'Chakra Petch', sans-serif"; c.fillText("MESA FECHADA", 40, 150);
+      c.fillStyle = "#e4ebf2"; c.font = "30px 'IBM Plex Mono', monospace";
+      c.fillText(T.stops + " stops hoje · volta na proxima abertura (00:00 UTC)", 44, 220);
+      c.fillStyle = "#8b9cae"; c.fillText("Pesquisa segue estudando: noticias, reacoes e melhores ativos", 44, 270);
+      return;
+    }
+    c.fillStyle = "#2dd4bf"; c.font = "600 34px 'Chakra Petch', sans-serif"; c.fillText("MESA DE TRADE · MICRO 15M · MACRO 1H", 30, 50);
+    c.fillStyle = "#8b9cae"; c.font = "22px 'IBM Plex Mono', monospace";
+    c.fillText("stop " + usd(cfg.stopUsd) + " · alvo 3R · stops hoje " + T.stops + "/" + cfg.maxStopsPerDay, W - 600, 48);
+    state.markets.forEach((m, i) => {
+      const col = i % 3, row = Math.floor(i / 3), x = 30 + col * 486, y = 110 + row * 150;
+      c.fillStyle = "#0e151d"; c.fillRect(x, y - 34, 466, 132);
+      c.fillStyle = "#e4ebf2"; c.font = "600 32px 'Chakra Petch', sans-serif"; c.fillText(m.short, x + 14, y + 4);
+      c.font = "24px 'IBM Plex Mono', monospace"; c.fillStyle = m.chg24h >= 0 ? "#3fd08f" : "#ff6b6b"; c.fillText(sgn(m.chg24h) + "%", x + 340, y + 4);
+      c.fillStyle = "#8b9cae"; c.fillText(fmt(m.price, m.dec) + " · fluxo " + flowWord(m.macro ? m.macro.flow : 0), x + 14, y + 40);
+      c.fillStyle = m.best ? (m.best.dir > 0 ? "#3fd08f" : "#ff6b6b") : !m.open ? "#8b9cae" : "#f2b544"; c.font = "600 21px 'IBM Plex Mono', monospace";
+      c.fillText(m.best ? (m.best.dir > 0 ? "REGIAO COMPRADORA " : "REGIAO VENDEDORA ") + m.best.distAtr + " ATR" : !m.open ? "MERCADO FECHADO" : m.macro && !m.macro.bias ? "SEM CLAREZA" : "AGUARDANDO CENARIO", x + 14, y + 76);
     });
   });
   paint("newswall", (c, W, H) => {
-    c.fillStyle = "#0b1118"; c.fillRect(0, 0, W, H);
-    c.fillStyle = "#6cb6ff"; c.font = "600 30px 'Chakra Petch', sans-serif"; c.fillText("MANCHETES", 24, 44);
-    let y = 90; c.font = "21px 'IBM Plex Sans', sans-serif";
-    state.news.slice(0, 5).forEach(n => {
+    dark(c, W, H, "#0b0e18");
+    c.fillStyle = "#a78bfa"; c.font = "600 30px 'Chakra Petch', sans-serif"; c.fillText("NOTICIAS E EVENTOS", 24, 44);
+    let y = 92; c.font = "21px 'IBM Plex Sans', sans-serif";
+    state.news.slice(0, 6).forEach(n => {
       c.fillStyle = n.tone > 0 ? "#3fd08f" : n.tone < 0 ? "#ff6b6b" : "#9db0c4"; c.fillRect(24, y - 15, 8, 8);
       c.fillStyle = "#e4ebf2"; y = wrapText(c, n.title, 44, y, W - 70, 26, 2) + 8;
     });
   });
+  paint("kenji_board", (c, W, H) => {
+    c.fillStyle = "#f3f5f2"; c.fillRect(0, 0, W, H);
+    const S = state.desk.sim, Y = state.desk.study;
+    c.fillStyle = "#3b2a6b"; c.font = "600 26px 'Chakra Petch', sans-serif"; c.fillText("BLOCOS DE 25", 18, 36);
+    c.font = "17px 'IBM Plex Mono', monospace"; c.fillStyle = "#1c2a36";
+    c.fillText("60d 15m: " + S.n + " trades " + S.winRate + "% " + sgn(S.expectancy) + "R", 18, 72);
+    c.fillText("1h 2 anos: " + Y.n + " trades " + Y.winRate + "% " + sgn(Y.expectancy) + "R", 18, 98);
+    c.fillText("equilibrio com 3R: 25% de acerto", 18, 124);
+    let y = 160; Y.blocks.slice(-5).forEach((b, i) => { c.fillStyle = b.usd >= 0 ? "#137a4b" : "#b3261e";
+      c.fillText("bloco " + (Y.blocks.length - Math.min(5, Y.blocks.length) + i + 1) + ": " + b.wins + "/" + b.n + "  " + (b.usd >= 0 ? "+" : "") + usd(b.usd), 18, y); y += 24; });
+  });
+  paint("eco", (c, W, H) => {
+    dark(c, W, H, "#081220");
+    c.fillStyle = "#60a5fa"; c.font = "600 26px 'Chakra Petch', sans-serif"; c.fillText("ECONOMIA GLOBAL E BRASIL", 20, 36);
+    c.font = "19px 'IBM Plex Mono', monospace";
+    state.national.concat(state.global).slice(0, 9).forEach((m, i) => {
+      const y = 74 + i * 26; c.fillStyle = "#8b9cae"; c.fillText(m.name.slice(0, 22), 20, y);
+      const v = sgn(m.chg1d * 100) + "%"; c.fillStyle = m.chg1d >= 0 ? "#3fd08f" : "#ff6b6b"; c.fillText(v, W - 20 - c.measureText(v).width, y);
+    });
+  });
   paint("lab", (c, W, H) => {
     c.fillStyle = "#f3f5f2"; c.fillRect(0, 0, W, H);
-    c.fillStyle = "#1c2a36"; c.font = "600 30px 'Chakra Petch', sans-serif"; c.fillText("LABORATORIO", 22, 42);
-    c.font = "18px 'IBM Plex Mono', monospace"; let y = 80;
-    (state.lab || []).forEach(x => {
-      c.fillStyle = "#1c2a36"; c.fillText(x.asset + "  stop / alvo  -> R por trade", 22, y); y += 26;
-      x.rows.forEach(r => {
-        c.fillStyle = r.exp > 0 ? "#137a4b" : "#b3261e";
-        c.fillText((r.stopAtr + " ATR").padEnd(9) + (r.rr + "R").padEnd(6) + sgn(r.exp) + "R (" + r.n + ")", 34, y); y += 22;
-      });
-      y += 8;
+    c.fillStyle = "#1c2a36"; c.font = "600 28px 'Chakra Petch', sans-serif"; c.fillText("LABORATORIO", 20, 38);
+    c.font = "18px 'IBM Plex Mono', monospace";
+    [["macro completo", state.lab.bias], ["so fluxo", state.lab.flow], ["sem filtro", state.lab.none]].forEach(([n, x], i) => {
+      c.fillStyle = x.exp >= 0 ? "#137a4b" : "#b3261e"; c.fillText(n.padEnd(16) + sgn(x.exp) + "R (" + x.n + ")", 20, 84 + i * 30);
     });
+    c.fillStyle = "#5b6672"; c.fillText("regra so muda apos 25 trades", 20, 190);
   });
-  paint("broker", (c, W, H) => {
-    const L = state.broker.live;
-    c.fillStyle = "#08130e"; c.fillRect(0, 0, W, H);
-    c.fillStyle = "#7bc96f"; c.font = "600 26px 'Chakra Petch', sans-serif"; c.fillText("CORRETORA VIRTUAL", 20, 38);
-    c.fillStyle = "#e4ebf2"; c.font = "500 34px 'IBM Plex Mono', monospace"; c.fillText("US$ " + fmt(L.equity, 0), 20, 88);
-    c.font = "20px 'IBM Plex Mono', monospace"; c.fillStyle = "#8b9cae";
-    c.fillText("abertas " + L.open.length + "  encerradas " + L.n, 20, 124);
-    let y = 160; (L.pending || []).slice(0, 3).forEach(o => { c.fillStyle = o.dir > 0 ? "#3fd08f" : "#ff6b6b"; c.fillText((o.dir > 0 ? "ORDEM COMPRA " : "ORDEM VENDA ") + o.asset, 20, y); y += 26; });
-  });
-  // desk monitors: each person's own subject
-  const deskText = {
-    rafa: () => state.assets.filter(a => a.kind === "crypto").map(a => [a.short, a.verdict]),
-    bia: () => state.assets.filter(a => a.kind === "stock").map(a => [a.short, a.verdict]),
-    kenji: () => state.assets.slice(0, 6).map(a => [a.short, a.record ? sgn(a.record.exp) + "R" : "-"]),
-    marta: () => [["risco/trade", "1%"], ["aprovados", String((state.broker.live.pending || []).length)], ["segurados", String(state.assets.filter(a => a.held).length)]],
-    otavio: () => state.macro.slice(0, 5).map(m => [m.name.slice(0, 12), sgn(m.chg1d * 100) + "%"]),
-    lia: () => [["noticias", String(state.news.length)], ["positivas", String(state.news.filter(n => n.tone > 0).length)], ["negativas", String(state.news.filter(n => n.tone < 0).length)]],
-    caio: () => (state.lab[0] ? state.lab[0].rows.slice(0, 5).map(r => [r.stopAtr + "/" + r.rr, sgn(r.exp) + "R"]) : []),
-    nina: () => [["ativos", String(state.assets.length)], ["indicadores", String(state.macro.length)], ["noticias", String(state.news.length)]],
-    helena: () => [["clima", state.climate.label.split(",")[0]], ["sinais", String((state.broker.live.pending || []).length)]]
-  };
-  Object.keys(deskText).forEach(id => {
-    const rows = deskText[id]();
-    paint(id, (c, W, H) => {
-      c.fillStyle = "#06090d"; c.fillRect(0, 0, W, H);
-      c.font = "15px 'IBM Plex Mono', monospace";
-      rows.slice(0, 6).forEach((r, i) => {
-        c.fillStyle = "#8b9cae"; c.fillText(r[0], 10, 24 + i * 22);
-        c.fillStyle = /COMPRA|^\+/.test(r[1]) ? "#3fd08f" : /VENDA|^-/.test(r[1]) ? "#ff6b6b" : "#e4ebf2";
-        c.fillText(r[1], W - 10 - c.measureText(r[1]).width, 24 + i * 22);
-      });
-    });
-    const a = state.assets.find(x => x.short === (id === "bia" ? "PETR4" : id === "rafa" ? "BTC" : "")) ||
-              state.macro.find(m => m.id === (id === "otavio" ? "^GSPC" : id === "lia" ? "^BVSP" : id === "marta" ? "^VIX" : "BRL=X"));
-    paint(id + "2", (c, W, H) => {
-      c.fillStyle = "#06090d"; c.fillRect(0, 0, W, H);
-      const pts = a && a.spark ? a.spark : null;
-      c.fillStyle = "#8b9cae"; c.font = "14px 'IBM Plex Mono', monospace"; c.fillText(a ? (a.name || a.short) : "", 10, 20);
-      if (!pts) { c.fillStyle = "#f2b544"; c.fillText(a ? a.verdict || "" : "", 10, 44); return; }
-      const lo = Math.min(...pts), hi = Math.max(...pts);
-      c.strokeStyle = pts[pts.length - 1] >= pts[0] ? "#3fd08f" : "#ff6b6b"; c.lineWidth = 2; c.beginPath();
-      pts.forEach((p, i) => { const x = 10 + i / (pts.length - 1) * (W - 20), y = H - 12 - (p - lo) / (hi - lo || 1) * (H - 44); i ? c.lineTo(x, y) : c.moveTo(x, y); });
-      c.stroke();
-    });
-  });
+  const S = state.desk.sim, L = state.desk.live, glob = state.global, nat = state.national;
+  const mdesc = m => m ? [["preco", fmt(m.price, m.dec)], ["fluxo 1h", flowWord(m.macro ? m.macro.flow : 0)], ["clareza", m.macro && m.macro.bias ? flowWord(m.macro.bias) : "sem"],
+    ["regiao", m.best ? (m.best.dir > 0 ? "COMPRA " : "VENDA ") + m.best.distAtr + "ATR" : "-"], ["mercado", m.open ? "aberta" : "fechado"]] : [];
+  if (closed) ["rafa", "bia", "duda", "marta", "teo"].forEach(id => { paint(id, (c, W, H) => dark(c, W, H, "#000")); paint(id + "2", (c, W, H) => dark(c, W, H, "#000")); });
+  else {
+    rowsScreen("rafa", "BTC", mdesc(mk("BTC"))); sparkScreen("rafa2", "BTC 24h", mk("BTC") && mk("BTC").spark);
+    rowsScreen("bia", "XAU", mdesc(mk("XAU"))); sparkScreen("bia2", "XAU 24h", mk("XAU") && mk("XAU").spark);
+    rowsScreen("duda", "FOREX", state.markets.filter(m => m.desk === "duda").map(m => [m.short, m.best ? (m.best.dir > 0 ? "COMPRA" : "VENDA") : flowWord(m.macro ? m.macro.flow : 0)]));
+    sparkScreen("duda2", "EUR 24h", mk("EUR") && mk("EUR").spark);
+    rowsScreen("marta", "RISCO", [["stop", usd(cfg.stopUsd)], ["alvo 3R", usd(cfg.stopUsd * 3)], ["stops hoje", T.stops + "/" + cfg.maxStopsPerDay], ["risco dia", fmt(state.profile.dailyRiskPct, 1) + "%"], ["perfil", state.profile.label.split(" ")[0]]]);
+    sparkScreen("marta2", "simulacao 60d", [cfg.capital].concat(S.curve.map(p => p.eq)));
+    rowsScreen("teo", "CORRETORA", [["patrimonio", usd(L.equity)], ["resultado", (L.pnl >= 0 ? "+" : "") + usd(L.pnl)], ["abertas", String(L.open.length)], ["encerradas", String(L.n)]]);
+    sparkScreen("teo2", "patrimonio", [cfg.capital].concat(L.curve.map(p => p.eq)));
+  }
+  rowsScreen("lia", "NOTICIAS", [["lidas", String(state.news.length)], ["positivas", "+" + state.news.filter(n => n.tone > 0).length], ["negativas", "-" + state.news.filter(n => n.tone < 0).length]], "#a78bfa");
+  sparkScreen("lia2", "USD/BRL", (nat.find(m => m.id === "BRL=X") || {}).spark);
+  const ev = state.research.events[0];
+  rowsScreen("sofia", "EVENTOS", ev ? ev.moves.slice(0, 5).map(x => [x.asset, sgn(x.pct) + "%"]) : [["sem eventos", "-"]], "#a78bfa");
+  sparkScreen("sofia2", "Ibovespa", (nat.find(m => m.id === "^BVSP") || {}).spark);
+  rowsScreen("kenji", "ESTATISTICA", [["trades 60d", String(S.n)], ["acerto", S.winRate + "%"], ["media", sgn(S.expectancy) + "R"], ["dias fechados", String(S.closedDays.length)]], "#a78bfa");
+  sparkScreen("kenji2", "1h 2 anos", [cfg.capital].concat(state.desk.study.curve.map(p => p.eq)));
+  rowsScreen("otavio", "GLOBAL", glob.slice(0, 5).map(m => [m.name.split(" ")[0], sgn(m.chg1d * 100) + "%"]), "#60a5fa");
+  sparkScreen("otavio2", "S&P 500", (glob.find(m => m.id === "^GSPC") || {}).spark);
+  rowsScreen("paulo", "BRASIL", nat.map(m => [m.name, sgn(m.chg1d * 100) + "%"]), "#60a5fa");
+  sparkScreen("paulo2", "Dolar R$", (nat.find(m => m.id === "BRL=X") || {}).spark);
+  rowsScreen("helena", "RANKING", state.research.ranking.slice(0, 5).map(r => [r.asset, fmt(r.score, 1)]), "#f472b6");
+  sparkScreen("helena2", "patrimonio", [cfg.capital].concat(L.curve.map(p => p.eq)));
+  rowsScreen("caio", "VARIANTES", [["completo", sgn(state.lab.bias.exp) + "R"], ["so fluxo", sgn(state.lab.flow.exp) + "R"], ["sem filtro", sgn(state.lab.none.exp) + "R"]]);
+  sparkScreen("caio2", "XAU 24h", mk("XAU") && mk("XAU").spark);
+  rowsScreen("nina", "DADOS", [["mercados", String(state.markets.length)], ["indicadores", String(glob.length + nat.length)], ["noticias", String(state.news.length)], ["falhas", String(state.errors.length)]]);
+  sparkScreen("nina2", "BTC 24h", mk("BTC") && mk("BTC").spark);
 }
 function paintClock() {
   paint("clock", (c, W, H) => {
-    c.fillStyle = "#05080c"; c.fillRect(0, 0, W, H);
+    dark(c, W, H, "#05080c");
     c.fillStyle = "#f2b544"; c.font = "500 54px 'IBM Plex Mono', monospace";
-    const t = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
-    c.fillText(t, 20, 70); c.fillStyle = "#8b9cae"; c.font = "18px 'IBM Plex Mono', monospace"; c.fillText("BRASILIA · 24/7", 22, 104);
+    c.fillText(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }), 20, 70);
+    c.fillStyle = "#8b9cae"; c.font = "18px 'IBM Plex Mono', monospace"; c.fillText("BRASILIA · 24/7", 22, 104);
   });
 }
-paintClock(); setInterval(paintClock, 20000);
+function paintSigns() { sign("trade", 9.4, -1.6, 4.4); sign("pesquisa", -9.4, -1.6, 5); sign("economia", -11.8, 7.8, 5); sign("lab", 9.1, 7.8, 3.8); sign("direcao", 15.2, 7.8, 3.2); }
+paintClock(); setInterval(paintClock, 20000); paintSigns();
 
 // ------------------------------------------------------------------ the agents
 const labels = $("labels");
@@ -598,113 +767,123 @@ function makeBody(id) {
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 18, 14), skinM); head.position.y = 1.74; head.castShadow = true; g.add(head);
   const cap = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), hairM);
   cap.position.y = 1.76; cap.rotation.x = -0.25; g.add(cap);
-  if (fem) { const tail = box(0.22, 0.32, 0.1, hairM, 0, 1.62, 0.14, g); tail.castShadow = true; }
+  if (fem) box(0.22, 0.32, 0.1, hairM, 0, 1.62, 0.14, g);
   g.traverse(o => { o.userData.agent = id; });
   return { g, legL, legR, armL, armR, head };
 }
-
 const agents = [];
-function addAgent(p) {
-  const b = makeBody(p.id);
-  const home = STATION[p.id];
-  b.g.position.set(home[0], 0, home[1]);
-  scene.add(b.g);
-  const tag = el("div", "tag"); const bub = el("div", "bubble"); const nm = el("div", "name", p.name + " ");
+DEFAULT_PEOPLE.forEach(p => {
+  const b = makeBody(p.id), home = STATION[p.id];
+  b.g.position.set(home[0], 0, home[1]); scene.add(b.g);
+  const tag = el("div", "tag"), bub = el("div", "bubble"), nm = el("div", "name", p.name + " ");
   nm.append(el("i", null, p.role.split(" ")[0])); tag.append(bub, nm); labels.append(tag);
-  const a = { id: p.id, body: b, tag, bub, path: [], mode: "work", timer: 3 + Math.random() * 8, face: Math.PI, speed: 1.5 + Math.random() * 0.3,
-              doing: "Trabalhando na mesa", bubbleUntil: 0, phase: Math.random() * 6 };
-  agents.push(a);
-}
-DEFAULT_PEOPLE.forEach(addAgent);
-
-function say(a, text, secs) { a.bub.textContent = text; a.bub.classList.add("show"); a.bubbleUntil = clock.elapsedTime + (secs || 5); }
-const aisle = z => (z < -2 ? -2.3 : 2.6);
+  agents.push({ id: p.id, sector: p.sector, body: b, tag, bub, path: [], mode: "work", timer: 3 + Math.random() * 8, face: Math.PI,
+                speed: 1.6 + Math.random() * 0.3, doing: "Trabalhando na mesa", bubbleUntil: 0, phase: Math.random() * 6, away: false });
+});
+const clock = new THREE.Clock();
+function say(a, text, secs) { if (!text || a.away) return; a.bub.textContent = text; a.bub.classList.add("show"); a.bubbleUntil = clock.elapsedTime + (secs || 5); }
+const inMeet = (x, z) => x > -4.6 && x < 3.6 && z > 0.05;
 function route(a, to, after) {
   const p = a.body.g.position, pts = [];
-  const inMeet = (x, z) => x < -7 && z < 1 && z > -7;
-  const from = [p.x, p.z];
-  if (inMeet(from[0], from[1])) { pts.push(MEET.inside, MEET.door); from[0] = MEET.door[0]; from[1] = MEET.door[1]; }
+  if (inMeet(p.x, p.z)) pts.push(MEET.door);
+  else if (Math.abs(p.z - AISLE) > 0.3) pts.push([p.x, AISLE]);
   const goingIn = inMeet(to[0], to[1]);
-  const target = goingIn ? MEET.door : to;
-  const za = aisle(from[1]), zb = aisle(target[1]);
-  pts.push([from[0], za]);
-  if (za !== zb) pts.push([from[0] > 8 ? 8 : from[0] < -6 ? -6 : from[0], zb]);
-  pts.push([target[0], zb], target);
-  if (goingIn) pts.push(MEET.inside, to);
+  const tx = goingIn ? MEET.door[0] : to[0];
+  pts.push([tx, AISLE]);
+  if (goingIn) pts.push(MEET.door);
+  pts.push(to);
   a.path = pts.map(q => new THREE.Vector2(q[0], q[1])); a.after = after; a.mode = "walk";
-}
-function goHome(a) {
-  const h = STATION[a.id];
-  a.doing = "Voltando para a mesa";
-  route(a, h, () => { a.mode = "work"; a.face = Math.PI; a.timer = 8 + Math.random() * 14; a.doing = taskOf(a.id); });
 }
 const taskOf = id => (state && state.agents && state.agents[id] && state.agents[id].task) || "Trabalhando na mesa";
 const bubbleOf = id => (state && state.agents && state.agents[id] && state.agents[id].bubble) || "";
-
+function goHome(a) {
+  if (a.sector === "trade" && deskClosed()) return leave(a);
+  a.doing = "Voltando para a mesa";
+  route(a, STATION[a.id], () => { a.mode = "work"; a.face = Math.PI; a.timer = 8 + Math.random() * 14; a.doing = taskOf(a.id); });
+}
+function leave(a) {
+  if (a.away || a.leaving) return;
+  a.leaving = true; a.doing = "Indo para casa: 2 stops no dia";
+  say(a, "Dois stops hoje. Volto na proxima abertura.", 4);
+  route(a, EXIT, () => { a.away = true; a.leaving = false; a.body.g.visible = false; a.tag.style.display = "none"; a.mode = "away"; a.doing = "Foi para casa (2 stops no dia)"; });
+}
+function comeBack(a) {
+  if (!a.away) return;
+  a.away = false; a.body.g.visible = true; a.body.g.position.set(EXIT[0], 0, EXIT[1]);
+  goHome(a); say(a, "Nova sessao, mesa aberta.", 4);
+}
+let lastClosed = null;
+function applyDesk() {
+  const closed = deskClosed();
+  if (closed === lastClosed) return;
+  lastClosed = closed;
+  agents.filter(a => a.sector === "trade").forEach(a => closed ? leave(a) : comeBack(a));
+  sectorLights.trade.forEach(l => { if (l.isLight) l.intensity = closed ? 0 : 0.9; else l.material.color.set(closed ? "#333" : "#fff1cf"); });
+  sectorFloors.trade.color.set(closed ? "#0c1413" : SECTOR.trade.floor);
+  const ban = $("closedBanner");
+  ban.hidden = !closed;
+  if (closed) ban.textContent = demoClosed ? "Simulacao visual: assim fica a agencia depois de 2 stops no dia. A pesquisa segue." :
+    "Mesa de trade fechada: " + state.desk.today.stops + " stops hoje. Volta na proxima abertura (00:00 UTC). A pesquisa segue.";
+  paintScreens(); if (tab === "meeting" || tab === "team" || tab === "broker") renderTab(); renderStatus();
+}
 function decide(a) {
-  if (meeting.phase !== "off") return;
+  if (meeting.phase !== "off" || a.away) return;
   const r = Math.random();
-  if (r < 0.55) { a.timer = 8 + Math.random() * 14; a.doing = taskOf(a.id); if (Math.random() < 0.6 && bubbleOf(a.id)) say(a, bubbleOf(a.id), 6); return; }
-  if (r < 0.82) {
-    const pid = PARTNER[a.id][Math.floor(Math.random() * PARTNER[a.id].length)], partner = agents.find(x => x.id === pid);
-    if (!partner || partner.mode !== "work") { a.timer = 5; return; }
-    const pp = partner.body.g.position, spot = [pp.x + 0.9, pp.z + 0.6];
-    a.doing = "Conversando com " + person(pid).name;
-    route(a, spot, () => {
+  if (r < 0.55) { a.timer = 8 + Math.random() * 14; a.doing = taskOf(a.id); if (Math.random() < 0.6) say(a, bubbleOf(a.id), 6); return; }
+  if (r < 0.85) {
+    const opts = PARTNER[a.id].map(id => agents.find(x => x.id === id)).filter(x => x && x.mode === "work" && !x.away);
+    if (!opts.length) { a.timer = 5; return; }
+    const partner = opts[Math.floor(Math.random() * opts.length)], pp = partner.body.g.position;
+    a.doing = "Conversando com " + person(partner.id).name;
+    route(a, [pp.x + 0.9, pp.z + 0.6], () => {
       a.mode = "talk"; a.timer = 7; a.face = Math.atan2(pp.x - a.body.g.position.x, pp.z - a.body.g.position.z);
-      const mine = bubbleOf(a.id), theirs = bubbleOf(pid);
-      if (mine) say(a, mine, 3.5);
-      if (theirs) setTimeout(() => say(partner, theirs, 3.5), 3500);
+      say(a, bubbleOf(a.id), 3.5); setTimeout(() => say(partner, bubbleOf(partner.id), 3.5), 3500);
       a.onDone = () => goHome(a);
     });
     return;
   }
-  const dev = a.id === "caio" || a.id === "nina" || a.id === "kenji";
-  const spot = dev ? [BOARD[0] - 1.2 + Math.random() * 0.4, BOARD[1] + 0.6] : [COFFEE[0] - 0.6 + Math.random() * 1.6, COFFEE[1]];
-  a.doing = dev ? "Anotando resultados no quadro do laboratorio" : "Pausa para o cafe";
-  route(a, spot, () => {
-    a.mode = "talk"; a.timer = 6 + Math.random() * 4; a.face = dev ? -0.55 + Math.PI : 0;
-    if (dev && state && state.lab && state.lab[0]) { const best = state.lab[0].rows.slice().sort((x, y) => y.exp - x.exp)[0]; say(a, "Melhor variante BTC: stop " + best.stopAtr + " ATR, alvo " + best.rr + "R: " + sgn(best.exp) + "R", 5); }
-    a.onDone = () => goHome(a);
-  });
+  a.doing = "Pausa para o cafe";
+  route(a, [COFFEE[0] - 0.8 + Math.random() * 1.6, COFFEE[1]], () => { a.mode = "talk"; a.timer = 5 + Math.random() * 4; a.face = Math.PI; a.onDone = () => goHome(a); });
 }
 
-// meetings: everyone walks to the glass room and the latest minutes are read out
-const meeting = { phase: "off", next: 20, line: 0, lineAt: 0, startedAt: 0 };
-function seatOf(i, n) { const ang = i / n * Math.PI * 2; return [MEET.c[0] + Math.cos(ang) * MEET.r, MEET.c[1] + Math.sin(ang) * MEET.r]; }
+// meetings: who is in the office walks to the glass room and the latest minutes are read out
+const meeting = { phase: "off", next: 18, line: 0, lineAt: 0, startedAt: 0, list: [] };
 function startMeeting(t) {
   if (!state) { meeting.next = t + 20; return; }
-  meeting.phase = "gather"; meeting.startedAt = t; $("phase").textContent = "Reuniao: equipe a caminho da sala";
-  agents.forEach((a, i) => {
-    a.doing = "Indo para a reuniao"; const s = seatOf(i, agents.length);
+  const present = agents.filter(a => !a.away && !a.leaving);
+  meeting.phase = "gather"; meeting.startedAt = t; meeting.list = lines();
+  $("phase").textContent = deskClosed() ? "Reuniao de estudo: pesquisa, economia e diretoria" : "Reuniao: equipe a caminho da sala";
+  present.forEach((a, i) => {
+    const ang = i / present.length * Math.PI * 2, s = [MEET.c[0] + Math.cos(ang) * MEET.r, MEET.c[1] + Math.sin(ang) * MEET.r];
+    a.doing = "Indo para a reuniao";
     route(a, s, () => { a.mode = "meet"; a.face = Math.atan2(MEET.c[0] - s[0], MEET.c[1] - s[1]); a.doing = "Em reuniao"; });
   });
 }
 function tickMeeting(t) {
   if (meeting.phase === "off") { if (t > meeting.next) startMeeting(t); return; }
   if (meeting.phase === "gather") {
-    if (agents.every(a => a.mode === "meet") || t - meeting.startedAt > 28) { meeting.phase = "talk"; meeting.line = -1; meeting.lineAt = t - LINE_SECONDS; }
+    if (agents.every(a => a.away || a.mode === "meet") || t - meeting.startedAt > 30) { meeting.phase = "talk"; meeting.line = -1; meeting.lineAt = t - LINE_SECONDS; }
     return;
   }
-  if (meeting.phase === "talk" && t - meeting.lineAt >= LINE_SECONDS) {
-    meeting.line++; meeting.lineAt = t;
-    const lines = state.meeting.lines;
-    if (meeting.line >= lines.length) {
-      meeting.phase = "off"; meeting.next = t + MEET_EVERY; speaking = -1; $("phase").textContent = "Expediente";
-      agents.forEach(a => goHome(a)); if (tab === "meeting") renderTab(); return;
-    }
-    const l = lines[meeting.line], a = agents.find(x => x.id === l.who);
-    speaking = meeting.line;
-    if (a) say(a, l.text.length > 170 ? l.text.slice(0, 167) + "..." : l.text, LINE_SECONDS - 0.4);
-    $("phase").textContent = "Reuniao: " + person(l.who).name + " falando";
-    if (tab === "meeting") {
-      document.querySelectorAll(".line.now").forEach(x => x.classList.remove("now"));
-      const row = $("line" + meeting.line); if (row) { row.classList.add("now"); row.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" }); }
-    }
+  if (t - meeting.lineAt < LINE_SECONDS) return;
+  meeting.line++; meeting.lineAt = t;
+  const L = meeting.list;
+  if (meeting.line >= L.length) {
+    meeting.phase = "off"; meeting.next = t + MEET_EVERY; speaking = -1; $("phase").textContent = "Expediente";
+    agents.forEach(a => { if (!a.away) goHome(a); }); if (tab === "meeting") renderTab(); return;
+  }
+  const l = L[meeting.line], a = agents.find(x => x.id === l.who);
+  speaking = meeting.line;
+  if (a) say(a, l.text.length > 170 ? l.text.slice(0, 167) + "..." : l.text, LINE_SECONDS - 0.4);
+  $("phase").textContent = "Reuniao: " + person(l.who).name + " falando";
+  if (tab === "meeting") {
+    document.querySelectorAll(".line.now").forEach(x => x.classList.remove("now"));
+    const row = $("line" + meeting.line); if (row) { row.classList.add("now"); row.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" }); }
   }
 }
 
 function animateAgent(a, dt, t) {
+  if (a.away) return;
   const g = a.body.g, p = g.position;
   if (a.mode === "walk") {
     const target = a.path[0];
@@ -724,7 +903,8 @@ function animateAgent(a, dt, t) {
       a.body.armL.rotation.x = -1.05 + k; a.body.armR.rotation.x = -1.05 - k;
       a.body.head.rotation.y = Math.sin(t * 0.7 + a.phase) * 0.25;
     } else {
-      a.body.armL.rotation.x = Math.sin(t * 2 + a.phase) * 0.15; a.body.armR.rotation.x = (a.bub.classList.contains("show") ? -0.6 + Math.sin(t * 5) * 0.3 : 0);
+      a.body.armL.rotation.x = Math.sin(t * 2 + a.phase) * 0.15;
+      a.body.armR.rotation.x = a.bub.classList.contains("show") ? -0.6 + Math.sin(t * 5) * 0.3 : 0;
       a.body.head.rotation.y = 0;
     }
     if (a.mode === "work" || a.mode === "talk") {
@@ -736,17 +916,16 @@ function animateAgent(a, dt, t) {
   if (a.bubbleUntil && t > a.bubbleUntil) { a.bub.classList.remove("show"); a.bubbleUntil = 0; }
 }
 
-// labels follow the heads on screen
 const v3 = new THREE.Vector3();
 function placeLabels(w, h) {
   agents.forEach(a => {
+    if (a.away) return;
     v3.set(a.body.g.position.x, 2.12, a.body.g.position.z).project(camera);
     const vis = v3.z < 1 && Math.abs(v3.x) < 1.1 && Math.abs(v3.y) < 1.1;
     a.tag.style.display = vis ? "" : "none";
     if (vis) a.tag.style.transform = "translate(" + ((v3.x + 1) / 2 * w) + "px," + ((1 - v3.y) / 2 * h) + "px) translate(-50%,-100%)";
   });
 }
-// tap a person to see their report
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let downAt = null;
 canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
 canvas.addEventListener("pointerup", e => {
@@ -754,22 +933,22 @@ canvas.addEventListener("pointerup", e => {
   const r = canvas.getBoundingClientRect();
   ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
   ray.setFromCamera(ptr, camera);
-  const hit = ray.intersectObjects(agents.map(a => a.body.g), true).find(h => h.object.userData.agent);
+  const hit = ray.intersectObjects(agents.filter(a => !a.away).map(a => a.body.g), true).find(h => h.object.userData.agent);
   if (hit) focusAgent(hit.object.userData.agent);
 });
 function focusAgent(id) {
   selected = id; setTab("team");
-  const a = agents.find(x => x.id === id); if (!a) return;
+  const a = agents.find(x => x.id === id); if (!a || a.away) return;
   const p = a.body.g.position; flyTo([p.x + 4, 4.5, p.z + 6], [p.x, 1.2, p.z]);
-  if (bubbleOf(id)) say(a, bubbleOf(id), 6);
+  say(a, bubbleOf(id), 6);
 }
-
-// camera moves
 let fly = null;
-function flyTo(pos, target) { controls.autoRotate = false; fly = { p0: camera.position.clone(), t0: controls.target.clone(), p1: new THREE.Vector3(...pos), t1: new THREE.Vector3(...target), k: 0 }; }
-$("camAll").onclick = () => flyTo([15, 17, 23], [0, 0.5, -1.5]);
-$("camDesk").onclick = () => flyTo([0, 6.5, 7.5], [0, 1.2, -3]);
-$("camMeet").onclick = () => flyTo([-4, 7.5, 5], [-11, 0.8, -3]);
+function flyTo(pos, target) { fly = { p0: camera.position.clone(), t0: controls.target.clone(), p1: new THREE.Vector3(...pos), t1: new THREE.Vector3(...target), k: 0 }; }
+$("camAll").onclick = () => flyTo([4, 21, 25], [0, 0.5, -1.5]);
+$("camTrade").onclick = () => flyTo([9, 7, 4], [9, 1.2, -6]);
+$("camResearch").onclick = () => flyTo([-9.5, 7, 4], [-9.5, 1.2, -6]);
+$("camEco").onclick = () => flyTo([-10, 6.5, 13], [-11, 1, 3]);
+$("camMeet").onclick = () => flyTo([-0.5, 8, 13], [-0.5, 0.8, 4]);
 
 function resize() {
   const r = canvas.parentElement.getBoundingClientRect();
@@ -777,7 +956,6 @@ function resize() {
 }
 new ResizeObserver(resize).observe(canvas.parentElement); resize();
 
-const clock = new THREE.Clock();
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   if (fly) {
@@ -793,6 +971,5 @@ function frame() {
 }
 frame();
 connect();
-// fonts arrive after the first paint of the screens
-if (document.fonts) document.fonts.ready.then(() => { paintScreens(); paintClock(); });
+if (document.fonts) document.fonts.ready.then(() => { paintScreens(); paintClock(); paintSigns(); });
 </script>
