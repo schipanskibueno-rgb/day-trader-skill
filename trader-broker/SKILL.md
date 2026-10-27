@@ -135,6 +135,45 @@ submits orders directly to the market. So with IBKR the final yes happens in
 IBKR as well. Set `"broker": "ibkr"` in `trader/config.json`. Set its tools
 that draft orders to Needs approval too.
 
+## Setup C: Binance Spot Testnet (fake money, runs on your own device)
+
+There is no Binance connector in Claude's directory, so `binance.py` in this
+folder talks to the Binance Spot **Testnet** itself (standard library
+Python, no pip). Every request goes to `https://testnet.binance.vision`;
+there is no switch to the live exchange in the file. Binance refuses
+requests from restricted locations (cloud servers included), so run it on
+your own computer, phone or tablet: Termux on Android, a-Shell or Pythonista
+on iPad.
+
+1. Sign in at testnet.binance.vision with GitHub and click "Generate
+   HMAC_SHA256 Key". Testnet keys hold fake money only.
+2. Put the keys in `BINANCE_API_KEY` and `BINANCE_SECRET_KEY`, or in
+   `trader/binance_keys.json` (`{"api_key": "...", "secret_key": "..."}`) on
+   that device. Never in the chat.
+3. Run it:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/binance.py" check                     # read only: can it trade, BTC and USDT
+python3 "${CLAUDE_SKILL_DIR}/binance.py" plan --side buy --stop 79850 --take 82050
+python3 "${CLAUDE_SKILL_DIR}/binance.py" approve --index 1 --reply "sim"
+python3 "${CLAUDE_SKILL_DIR}/binance.py" place --index 1           # market entry, then the OCO exit
+python3 "${CLAUDE_SKILL_DIR}/binance.py" status
+python3 "${CLAUDE_SKILL_DIR}/binance.py" close --index 1 --reply "sim"
+```
+
+`plan` rounds to the pair's tick and step size, sizes the trade to
+`max_loss_per_trade_usd` (fees included) when there is no `--qty`, and
+refuses a stop on the wrong side, a stop under 0.05% away, a loss over the
+limit, a reward:risk under `min_reward_risk` or an order under the pair's
+minimum. `approve` takes one explicit "sim" or "yes" for one ticket and
+refuses "ok", "pode", "sim para todos" or a yes with a doubt in it. `place`
+sends only an approved ticket, once, within 30 minutes of the yes, and only
+while the price is still between the stop and the take. The exit is an OCO:
+a LIMIT_MAKER at the take and a STOP_LOSS_LIMIT at the stop (its limit 0.3%
+past the stop, so a fast market can still jump it). If the OCO fails after
+the entry fills, the ticket says "SEM STOP" and `close` exits at market.
+A sell on spot sells BTC you already hold; it is not a margin short.
+
 ## Steps: the entry
 
 1. `ticket.py show`. Only READY tickets go to the user. A ticket that is NOT
