@@ -108,9 +108,29 @@ class Engine(unittest.TestCase):
         self.assertEqual(self.out["stats"], [3, 2, 0.5])
 
 
+class Launcher(unittest.TestCase):
+    def test_serves_the_page_on_localhost(self):
+        import threading
+        import urllib.request
+        from _load import load
+        robo = load("docs", "robo")
+        server = robo.make_server()
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            port = server.server_address[1]
+            self.assertEqual(server.server_address[0], "127.0.0.1")
+            with urllib.request.urlopen("http://localhost:%d/" % port) as r:
+                self.assertIn("Robo Trader", r.read().decode())
+            with urllib.request.urlopen("http://localhost:%d/engine.js" % port) as r:
+                self.assertEqual(r.status, 200)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+
 class Page(unittest.TestCase):
     def test_page_files_and_no_order_path(self):
-        for f in ("index.html", "app.js", "engine.js", "style.css", "sw.js", "manifest.webmanifest", "icon.svg"):
+        for f in ("index.html", "app.js", "engine.js", "style.css", "sw.js", "manifest.webmanifest", "icon.svg", "robo.py"):
             self.assertTrue(os.path.isfile(os.path.join(ROOT, "docs", f)), f)
         with open(os.path.join(ROOT, "docs", "app.js"), encoding="utf-8") as fh:
             app = fh.read()
