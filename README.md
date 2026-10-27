@@ -152,6 +152,33 @@ for the 60 days to October 19 2026, the 10:15 AM opening-range scan, Yahoo's
 TSLA headlines that morning, the House Clerk's 2026 index, real PTR text and
 real XBRL facts. They reproduce every number in the example above.
 
+## Robo Trader: the crypto signal page
+
+`docs/` is a web page (Portuguese) that runs in any browser, on a phone, a
+tablet or a computer, with no command line. Turn on GitHub Pages for the
+`docs/` folder and open `https://<user>.github.io/day-trader-skill/`. It
+reads Binance's public candles straight from the browser (no keys, no
+orders) and, at each closed candle:
+
+- runs seven classic methods (moving-average cross, trend pullback, 20-candle
+  breakout, Bollinger squeeze, MACD, RSI 30/70, engulfing at support or
+  resistance), each backtested on the pair's own history with fees, entry at
+  the next open, a 1.5 ATR stop and a 2R target; only a method that made
+  money before counts;
+- finds the 30 past moments that looked most like now and shows what came
+  next;
+- weighs the trend on this and the higher timeframe into a score from -100
+  to +100: COMPRA, VENDA or AGUARDAR, with a plan (entry, stop, targets,
+  size for your max loss) and the command for `trader-broker/binance.py`;
+- tests itself: candle by candle over the last 1,500, deciding with only what
+  was known then, and holds its signals where that record is not positive.
+  In October 2026 only the daily chart had a positive record on BTC, ETH and
+  SOL.
+
+It refreshes every minute, can notify and beep on a new signal while open,
+keep the screen on, and installs to the home screen.
+`tests/test_robo.py` runs `docs/engine.js` under Node on real BTCUSDT candles.
+
 ## Fine print
 
 **Not financial advice.** This is software that reads public data and does

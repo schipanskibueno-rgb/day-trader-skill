@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Robo Trader</title>
+<meta name="description" content="Sinais de compra e venda de cripto com base no que ja funcionou no proprio grafico.">
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="icon.svg" alt="" width="28" height="28"><span>Robo Trader</span></div>
+  <div class="controls">
+    <label class="sr" for="symbol">Par</label>
+    <select id="symbol"></select>
+    <div class="seg" id="tf" role="group" aria-label="Tempo grafico">
+      <button data-tf="15m">15m</button><button data-tf="1h">1h</button><button data-tf="4h">4h</button><button data-tf="1d">1D</button>
+    </div>
+    <button id="refresh" class="ghost" title="Atualizar agora" aria-label="Atualizar agora">&#x21bb;</button>
+  </div>
+  <div class="status" id="status">Carregando...</div>
+</header>
+
+<main>
+  <section class="card verdict" id="verdictCard">
+    <div class="vhead">
+      <div>
+        <div class="label">Sinal agora</div>
+        <div class="verdict-text" id="verdict">...</div>
+        <div class="sub" id="verdictSub"></div>
+      </div>
+      <div class="price">
+        <div class="label" id="priceLabel">Preco</div>
+        <div class="num" id="price">-</div>
+        <div class="sub" id="priceSub"></div>
+      </div>
+    </div>
+    <div class="meter" aria-hidden="true"><div class="meter-mid"></div><div class="meter-dot" id="meterDot"></div></div>
+    <div class="meter-scale"><span>Venda</span><span>Aguardar</span><span>Compra</span></div>
+    <p class="note" id="note" hidden></p>
+    <div id="plan"></div>
+  </section>
+
+  <section class="card">
+    <h2>Por que</h2>
+    <ul class="reasons" id="reasons"></ul>
+  </section>
+
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>Grafico</h2>
+      <div class="legend"><span class="sw e20"></span>EMA 20 <span class="sw e50"></span>EMA 50 <span class="sw e200"></span>EMA 200</div>
+    </div>
+    <div class="chart" id="chart"></div>
+    <p class="hint" id="chartHint">Toque numa estrategia abaixo para ver no grafico onde ela deu sinal e se ganhou (verde) ou perdeu (vermelho).</p>
+  </section>
+
+  <section class="card">
+    <h2>Placar do proprio robo</h2>
+    <div id="robot"></div>
+  </section>
+
+  <section class="card">
+    <h2>Estrategias no historico deste grafico</h2>
+    <p class="hint" id="btHint"></p>
+    <div class="table-wrap">
+      <table class="strats">
+        <thead><tr><th>Estrategia</th><th>Agora</th><th>Compras</th><th>Vendas</th></tr></thead>
+        <tbody id="strats"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Momentos parecidos no passado</h2>
+    <div id="analogs"></div>
+  </section>
+
+  <details class="card" id="settingsBox">
+    <summary><h2>Ajustes</h2></summary>
+    <div class="grid">
+      <label>Perda maxima por trade (USDT)<input type="number" id="maxLoss" min="1" step="1"></label>
+      <label>Stop (vezes o ATR)<input type="number" id="stopAtr" min="0.5" max="5" step="0.1"></label>
+      <label>Alvo (vezes o risco, R)<input type="number" id="rr" min="1" max="5" step="0.5"></label>
+      <label>Taxa por lado (%)<input type="number" id="fee" min="0" max="1" step="0.005"></label>
+      <label>Outro par (ex.: ADAUSDT)<input type="text" id="customSymbol" placeholder="ADAUSDT" autocapitalize="characters"></label>
+    </div>
+    <div class="toggles">
+      <label class="tog"><input type="checkbox" id="requireEdge"> So dar sinal onde o robo ja provou vantagem (recomendado)</label>
+      <label class="tog"><input type="checkbox" id="auto"> Atualizar sozinho a cada minuto</label>
+      <label class="tog"><input type="checkbox" id="notify"> Avisar quando aparecer COMPRA ou VENDA</label>
+      <label class="tog"><input type="checkbox" id="wake"> Manter a tela ligada (modo robo)</label>
+    </div>
+    <p class="hint">Ajustes ficam salvos neste aparelho. Os avisos funcionam enquanto a pagina estiver aberta.</p>
+  </details>
+
+  <details class="card">
+    <summary><h2>Como o robo decide</h2></summary>
+    <div class="prose">
+      <p>A cada vela fechada o robo faz quatro perguntas e soma uma nota de -100 (venda) a +100 (compra):</p>
+      <ol>
+        <li><b>Alguma estrategia deu gatilho agora?</b> Sete metodos classicos (cruzamento de medias, pullback, rompimento, compressao de Bollinger, MACD, RSI e engolfo). Cada um foi testado em todo o historico carregado deste par e tempo grafico: entrada na abertura da vela seguinte, stop de 1,5 ATR, alvo de 2R, taxas descontadas, e na duvida o stop conta primeiro. <b>So vale o sinal de quem ganhou dinheiro no passado</b> (pelo menos 8 vezes e resultado medio positivo). Peso de ate 50 pontos.</li>
+        <li><b>O que aconteceu nas vezes em que o grafico estava parecido?</b> Ele procura os 30 momentos mais parecidos com agora (tamanho dos ultimos movimentos, RSI, distancia das medias, posicao nas bandas, volume) e ve o que veio depois. Ate 25 pontos.</li>
+        <li><b>Qual a tendencia neste tempo grafico?</b> Preco e medias de 20, 50 e 200. Ate 15 pontos.</li>
+        <li><b>E no tempo grafico maior?</b> (1h olha o 4h, 4h olha o diario.) Ate 10 pontos.</li>
+      </ol>
+      <p>Nota acima de +20 com gatilho de compra: <b>COMPRA</b> (acima de +45, forte). Abaixo de -20 com gatilho de venda: <b>VENDA</b>. O resto: <b>AGUARDAR</b>. Sem gatilho de uma estrategia com vantagem, nunca ha sinal, por melhor que pareca o contexto.</p>
+      <p><b>O placar do robo.</b> Depois disso ele se testa: volta ate 1.500 velas no passado e, vela a vela, decide usando so o que era conhecido naquele momento (sem espiar o futuro), opera cada sinal com o mesmo stop e alvo e soma o resultado. Se nesse par e tempo grafico o placar nao for positivo (pelo menos 10 sinais e media acima de zero), o sinal fica <b>segurado</b> e aparece como AGUARDAR, com o aviso. Nos testes de outubro de 2026 so o grafico diario teve placar positivo em BTC, ETH e SOL.</p>
+      <p>O plano usa o mesmo stop e alvo do teste e calcula a quantidade para voce perder no maximo o valor dos ajustes. O botao copia o comando para o script da testnet no Termux.</p>
+      <p><b>Limites honestos:</b> o teste usa o mesmo historico que avalia as estrategias (nao ha dados "nunca vistos"), o passado nao garante o futuro, e em tempos graficos curtos as taxas comem boa parte do ganho. Isto e uma ferramenta de estudo, nao recomendacao de investimento.</p>
+    </div>
+  </details>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<footer>Dados publicos da Binance, direto do seu navegador. Nada aqui envia ordens. Nao e recomendacao de investimento.</footer>
+
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
