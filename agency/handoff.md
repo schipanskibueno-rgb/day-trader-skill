@@ -138,7 +138,12 @@ moedas so 60 dias e quase sem trades); v2 com filtro macro H1 21 trades
 +0,57R (BTC 19). Em 1h/4h (2 anos) a v2 perde para a v1 (-0,13R contra
 +0,29R). Com a taxa da Binance (0,1% por lado) o BTC em 5m nao tem trade
 nenhum: o stop e menor que a taxa. Nada disso e prova: e um ano de um ativo.
-O robo do MT5 ainda e a v1.
+Robo da v2: `agency/mt5/PregaoVirtual2.mq5` (BTCUSD e XAUUSD, magico
+28102026, nao compilado ainda). A agencia (brain.js) tambem passou a operar a
+v2 em BTC e ouro com custo estimado do MT5; moedas so observadas. A tarefa
+agendada agora le a branch `claude/practical-keller-hauv05`. Nos ultimos 60
+dias a v2 com filtro H1 fez 5 trades, todos stop: amostra pequena, segue o
+plano dos blocos de 25.
 
 ## Proximos passos sugeridos
 

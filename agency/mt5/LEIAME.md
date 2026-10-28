@@ -1,7 +1,22 @@
 # Robo Pregao Virtual para MetaTrader 5
 
-`PregaoVirtual.mq5` e o metodo da agencia Pregao Virtual como robo (Expert
-Advisor) do MetaTrader 5:
+Ha duas versoes. **Instale a versao 2** (`PregaoVirtual2.mq5`):
+
+- **Versao 2, POI depois da limpeza de liquidez** (a da aula ao vivo do curso):
+  marca os topos e fundos do grafico de 15 minutos; quando um candle de 5
+  minutos passa de um deles, espera o POI (sobe, puxa para baixo quebrando
+  um fundinho com fundo mais alto perto da varrida, e fecha acima do topo da
+  puxada). Coloca ordem limitada no topo da zona, stop abaixo da puxada,
+  alvo 3R. So a favor do macro H1. Ativos padrao: BTCUSD e XAUUSD. A ordem
+  limitada e cancelada depois de 2 horas, se o preco for ao alvo sem pegar a
+  ordem, ou se a mesa fechar por 2 stops. Numero magico 28102026.
+- **Versao 1** (`PregaoVirtual.mq5`), guardada para comparacao, descrita
+  abaixo.
+
+Os passos de instalacao sao os mesmos para as duas; troque so o nome do
+arquivo. Nao rode as duas na mesma conta: cada uma conta os proprios stops.
+
+Versao 1, o metodo antigo da agencia:
 
 - **Macro H1:** fluxo de topos e fundos, CHoCH e o controle do ultimo volume
   alto. So opera quando fluxo e controle concordam.
@@ -57,7 +72,10 @@ ordem, confira na aba Negociacao:
    perto de US$ 80 (um pouco menos, porque o lote e arredondado para baixo).
 2. **Alvo:** a distancia entrada-alvo deve ser 3 vezes a distancia
    entrada-stop.
-3. **Comentario:** a ordem aparece como `PregaoVirtual 3R`.
+3. **Comentario:** a ordem aparece como `PregaoVirtual2 POI 3R` (versao 2) ou
+   `PregaoVirtual 3R` (versao 1). Na versao 2 a ordem pode aparecer primeiro
+   como **ordem limitada** (pendente) e so vira posicao quando o preco voltar
+   a zona.
 
 Mensagens comuns na linha do ativo:
 
