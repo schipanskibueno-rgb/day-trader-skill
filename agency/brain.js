@@ -5,14 +5,16 @@
  *   node agency/brain.js --out state.json [--config config.json] [--every-hours 2]
  *
  * Markets: BTC (Binance), gold and the four major currencies through their
- * CME futures on Yahoo Finance (spot forex has no volume, and the method
- * reads volume). The desk works the course method in agency/method.js on
- * 15-minute candles with the 1-hour picture as the macro: stop of a fixed
- * dollar amount, target 3R, at most 2 stops a day. Research reads the
- * news, measures how markets reacted to them and ranks the markets for the
- * next session; economists read global and Brazilian markets; the lab
- * re-tests the rules on two years of hourly candles (the market is
- * fractal) and in blocks of 25 trades. Nothing here places a real order.
+ * CME futures on Yahoo Finance (spot forex has no volume). The desk trades
+ * version 2 of the method in agency/method.js, the same as the MT5 robot:
+ * a POI on 5-minute candles after price cleans the liquidity of a
+ * 15-minute top or bottom, aligned with the 1-hour macro, on BTC and gold,
+ * with the MT5 spread as cost: stop of a fixed dollar amount, target 3R,
+ * at most 2 stops a day. The currencies are watched, not traded. Research
+ * reads the news, measures how markets reacted to them and ranks the
+ * markets; economists read global and Brazilian markets; the lab compares
+ * version 1 and 2 on the last 60 days and the desk re-tests version 2 on
+ * two years of hourly candles. Nothing here places a real order.
  */
 "use strict";
 
@@ -22,16 +24,19 @@ const M = require(path.join(__dirname, "method.js"));
 
 const FOUNDED = "2026-10-27";          // the paper desk trades from this day on
 const DEFAULTS = { capital: 5000, stopUsd: 80, maxStopsPerDay: 2, rr: 3, block: 25 };
-const MIN15 = 9e5, HOUR = 36e5, DAY = 864e5;
+const MIN5 = 3e5, MIN15 = 9e5, HOUR = 36e5, DAY = 864e5;
+// version 2 as the robot runs it: POI on 5m, liquidity of 15m, 1h macro; costs are MT5 spread estimates
+const V2 = { htfMs: MIN15, align: "bias", macroMs: HOUR };
+const V2_1H = { htfMs: 4 * HOUR, align: "bias", macroMs: 4 * HOUR };
 const UA = { "User-Agent": "Mozilla/5.0 (agency-brain)" };
 
 const MARKETS = [
-  { id: "BTCUSDT", short: "BTC", name: "Bitcoin", label: "BTC/USD", src: "binance", fee: 0.001, always: true, desk: "rafa", dec: 0 },
-  { id: "GC=F", short: "XAU", name: "Ouro", label: "XAU/USD (futuro GC)", src: "yahoo", fee: 0.0002, desk: "bia", dec: 1 },
-  { id: "6E=F", short: "EUR", name: "Euro", label: "EUR/USD (futuro 6E)", src: "yahoo", fee: 0.0001, desk: "duda", dec: 5 },
-  { id: "6B=F", short: "GBP", name: "Libra", label: "GBP/USD (futuro 6B)", src: "yahoo", fee: 0.0001, desk: "duda", dec: 4 },
-  { id: "6J=F", short: "JPY", name: "Iene", label: "JPY/USD (futuro 6J)", src: "yahoo", fee: 0.0001, desk: "duda", dec: 7 },
-  { id: "6A=F", short: "AUD", name: "Dolar australiano", label: "AUD/USD (futuro 6A)", src: "yahoo", fee: 0.0001, desk: "duda", dec: 5 }];
+  { id: "BTCUSDT", short: "BTC", name: "Bitcoin", label: "BTC/USD", src: "binance", fee: 0.0002, always: true, desk: "rafa", dec: 0, trade: true },
+  { id: "GC=F", short: "XAU", name: "Ouro", label: "XAU/USD (futuro GC)", src: "yahoo", fee: 0.00005, desk: "bia", dec: 1, trade: true },
+  { id: "6E=F", short: "EUR", name: "Euro", label: "EUR/USD (futuro 6E)", src: "yahoo", fee: 0.00003, desk: "duda", dec: 5 },
+  { id: "6B=F", short: "GBP", name: "Libra", label: "GBP/USD (futuro 6B)", src: "yahoo", fee: 0.00003, desk: "duda", dec: 4 },
+  { id: "6J=F", short: "JPY", name: "Iene", label: "JPY/USD (futuro 6J)", src: "yahoo", fee: 0.00003, desk: "duda", dec: 7 },
+  { id: "6A=F", short: "AUD", name: "Dolar australiano", label: "AUD/USD (futuro 6A)", src: "yahoo", fee: 0.00003, desk: "duda", dec: 5 }];
 const GLOBAL = [
   { id: "^GSPC", name: "S&P 500" }, { id: "^IXIC", name: "Nasdaq" }, { id: "DX-Y.NYB", name: "Indice do dolar (DXY)" },
   { id: "^TNX", name: "Juros 10 anos EUA" }, { id: "^VIX", name: "VIX (medo)" }, { id: "BZ=F", name: "Petroleo Brent" },
@@ -111,8 +116,8 @@ async function yahoo(symbol, interval, range) {
 }
 
 async function candles(m, interval) {
-  if (m.src === "binance") return binance(m.id, interval, interval === "15m" ? 6 : 18);
-  return yahoo(m.id, interval, interval === "15m" ? "60d" : "730d");
+  if (m.src === "binance") return binance(m.id, interval, interval === "5m" ? 18 : interval === "15m" ? 6 : 18);
+  return yahoo(m.id, interval, interval === "1h" ? "730d" : "60d");
 }
 
 // ---------------------------------------------------------------- helpers
@@ -256,7 +261,16 @@ function climate(glob) {
 
 function flowWord(f) { return f > 0 ? "alta" : f < 0 ? "baixa" : "lateral"; }
 
-function readMarket(m, b15, s15, study, now) {
+// the 15-minute tops and bottoms price has not cleaned yet, nearest first
+function liquidity(b5) {
+  const hb = M.aggregate(b5, MIN15), pv = M.pivots(hb, M.POI.htfPivot), last = b5[b5.length - 1];
+  const after = p => b5.filter(x => x.t >= hb[p.known].t + MIN15);
+  const highs = pv.hi.filter(p => p.known < hb.length && p.p > last.c && after(p).every(x => x.h <= p.p)).map(p => p.p).sort((a, b) => a - b);
+  const lows = pv.lo.filter(p => p.known < hb.length && p.p < last.c && after(p).every(x => x.l >= p.p)).map(p => p.p).sort((a, b) => b - a);
+  return { above: highs[0] === undefined ? null : highs[0], below: lows[0] === undefined ? null : lows[0] };
+}
+
+function readMarket(m, b15, s15, study, now, b5, openTrade) {
   const snap = M.snapshot(b15, s15), last = b15[b15.length - 1], mac = snap.macro;
   const regions = snap.regions.map(z => ({ dir: z.dir, poc: z.poc, val: z.val, vah: z.vah, born: z.born, aligned: z.aligned,
     distAtr: round(Math.abs(last.c - (z.dir > 0 ? z.vah : z.val)) / (snap.atr || 1), 1),
@@ -267,13 +281,27 @@ function readMarket(m, b15, s15, study, now) {
   else if (best && best.inside) status = "em teste na regiao: aguardando desinteresse e absorcao";
   else if (best) status = "regiao alinhada a " + best.distAtr + " ATR: aguardando o retorno";
   else if (mac && mac.bias === 0) status = "macro sem clareza (fluxo e controle em desacordo)";
+  let liq = null;
+  if (m.trade && b5 && b5.length) {
+    liq = liquidity(b5);
+    const a = snap.atr || 1, dist = v => v === null ? null : round(Math.abs(v - last.c) / a, 1);
+    liq.aboveAtr = dist(liq.above); liq.belowAtr = dist(liq.below);
+    if (!marketOpen(m, now)) status = "mercado fechado";
+    else if (openTrade) status = "posicionado: " + (openTrade.dir > 0 ? "compra" : "venda") + " com stop e alvo 3R";
+    else if (!mac || mac.bias === 0) status = "macro 1h sem clareza: so observando a liquidez";
+    else {
+      const lvl = mac.bias > 0 ? liq.below : liq.above, d = mac.bias > 0 ? liq.belowAtr : liq.aboveAtr;
+      status = lvl === null ? "sem liquidez de 15m marcada a favor"
+        : "aguardando limpar a liquidez " + (mac.bias > 0 ? "abaixo" : "acima") + " de " + px(m, lvl) + " (" + d + " ATR) e o POI de " + (mac.bias > 0 ? "compra" : "venda") + " em 5m";
+    }
+  } else if (!m.trade) status = marketOpen(m, now) ? "observando (a mesa opera so BTC e ouro)" : "mercado fechado";
   const dayAgo = b15.find(x => x.t >= last.t - DAY) || b15[0];
   return { id: m.id, short: m.short, name: m.name, label: m.label, desk: m.desk, dec: m.dec, open: marketOpen(m, now),
            price: last.c, t: last.t, chg24h: round(pctChange(last.c, dayAgo.o) * 100, 2),
            relVol: snap.relVol === null ? null : round(snap.relVol, 2), atr: snap.atr,
            macro: mac ? { flow: mac.flow, bias: mac.bias, choch: mac.choch, health: mac.health,
                           control: mac.control, lastHigh: mac.lastHigh, lastLow: mac.lastLow } : null,
-           regions, best, status,
+           regions, best: m.trade ? null : best, status, trade: !!m.trade, liquidity: liq,
            study: study ? { n: study.n, win: round(study.winRate * 100, 0), exp: round(study.expectancy, 2) } : null,
            spark: b15.slice(-96).map(x => x.c) };
 }
@@ -325,9 +353,9 @@ function meeting(st, now) {
     say("duda", st.markets.filter(x => x.desk === "duda").map(line).join("; ") + ".");
   }
   const sim = D.sim, study = D.study;
-  say("kenji", "Simulacao de 60 dias em 15m: " + sim.n + " trades, " + sim.winRate + "% de acerto, " + sgn(sim.expectancy) + "R por trade" +
+  say("kenji", "Simulacao de 60 dias, POI em 5m: " + sim.n + " trades, " + sim.winRate + "% de acerto, " + sgn(sim.expectancy) + "R por trade" +
     (sim.blocks.length ? " (bloco atual " + sim.blocks[sim.blocks.length - 1].wins + "/" + sim.blocks[sim.blocks.length - 1].n + ")" : "") +
-    ". Validacao fractal em 1h, 2 anos: " + study.n + " trades, " + sgn(study.expectancy) + "R. Com alvo de 3R o equilibrio e 25% de acerto; ainda sem vantagem comprovada.");
+    ". POI em 1h com liquidez de 4h, 2 anos: " + study.n + " trades, " + sgn(study.expectancy) + "R. Com alvo de 3R o equilibrio e 25% de acerto; ainda sem vantagem comprovada.");
   say("marta", "Stop de " + usd(st.config.stopUsd) + " por trade, alvo 3R (" + usd(st.config.stopUsd * 3) + "), risco diario de " +
     usd(st.profile.dailyRiskUsd) + " = " + fmt(st.profile.dailyRiskPct, 1) + "% de " + usd(st.config.capital) + " (" + st.profile.label + "). " +
     (closed ? "Dois stops hoje: mesa fechada ate " + new Date(D.today.reopenAt).toISOString().slice(11, 16) + " UTC." : "Stops hoje: " + D.today.stops + "/" + st.config.maxStopsPerDay + "."));
@@ -335,8 +363,8 @@ function meeting(st, now) {
   say("teo", "Corretora virtual desde " + FOUNDED.split("-").reverse().join("/") + ": " + usd(L0.equity) + " (" + (L0.pnl >= 0 ? "+" : "") + usd(L0.pnl) + "), " +
     L0.open.length + " posicao(oes) aberta(s), " + L0.n + " encerrada(s)" + (D.today.trades ? ", " + D.today.trades + " hoje" : "") + ".");
   const lab = st.lab;
-  say("caio", "Laboratorio (1h, 2 anos): com filtro macro completo " + sgn(lab.bias.exp) + "R em " + lab.bias.n + " trades; so fluxo " +
-    sgn(lab.flow.exp) + "R em " + lab.flow.n + "; sem filtro " + sgn(lab.none.exp) + "R em " + lab.none.n + ". Nada muda sem 25 trades novos.");
+  say("caio", "Laboratorio (60 dias, 6 mercados): versao 1 em 15m " + sgn(lab.v1.exp) + "R em " + lab.v1.n + " trades; POI em 5m " +
+    sgn(lab.v2.exp) + "R em " + lab.v2.n + "; POI com macro 1h (a da mesa) " + sgn(lab.v2macro.exp) + "R em " + lab.v2macro.n + ". Julgamos em blocos de 25 trades novos.");
   say("nina", "Leitura com " + st.markets.length + " mercados, " + (st.global.length + st.national.length) + " indicadores e " + st.news.length +
     " noticias. Fontes: Binance, Yahoo Finance (futuros CME), Google Noticias e MarketWatch." + (st.errors.length ? " Falhas: " + st.errors.length + "." : ""));
   const r0 = st.research.ranking[0];
@@ -351,9 +379,9 @@ function agentReports(st) {
   const short = x => x ? x.short + ": " + (x.best ? "regiao " + (x.best.dir > 0 ? "compradora" : "vendedora") + " a " + x.best.distAtr + " ATR" : x.status) : "";
   const add = (id, task, bubble) => { r[id] = { task, report: line(id), bubble }; };
   add("helena", "Coordenando a agencia", "Stops hoje " + st.desk.today.stops + "/" + st.config.maxStopsPerDay);
-  add("rafa", closed ? "Foi para casa (2 stops no dia)" : "Lendo o BTC: macro 1h e regioes em 15m", short(mk("BTC")));
-  add("bia", closed ? "Foi para casa (2 stops no dia)" : "Lendo o ouro: macro 1h e regioes em 15m", short(mk("XAU")));
-  add("duda", closed ? "Foi para casa (2 stops no dia)" : "Lendo euro, libra, iene e dolar australiano", short(st.markets.filter(x => x.desk === "duda").sort((a, b) => (a.best ? a.best.distAtr : 99) - (b.best ? b.best.distAtr : 99))[0]));
+  add("rafa", closed ? "Foi para casa (2 stops no dia)" : "BTC: liquidez de 15m e POI em 5m", short(mk("BTC")));
+  add("bia", closed ? "Foi para casa (2 stops no dia)" : "Ouro: liquidez de 15m e POI em 5m", short(mk("XAU")));
+  add("duda", closed ? "Foi para casa (2 stops no dia)" : "Observando euro, libra, iene e dolar australiano (sem operar)", short(st.markets.filter(x => x.desk === "duda").sort((a, b) => (a.best ? a.best.distAtr : 99) - (b.best ? b.best.distAtr : 99))[0]));
   add("marta", closed ? "Fechou a mesa do dia" : "Conferindo stop, alvo 3R e o limite de 2 stops", "Stop " + usd(st.config.stopUsd) + ", alvo 3R");
   add("teo", closed ? "Foi para casa (2 stops no dia)" : "Registrando as ordens no papel", "Patrimonio " + usd(st.desk.live.equity));
   add("lia", "Lendo noticias do mundo", st.news[0] ? st.news[0].title.slice(0, 70) : "Sem manchetes novas");
@@ -363,7 +391,7 @@ function agentReports(st) {
   add("otavio", "Acompanhando juros, dolar e bolsas globais", "Clima: " + st.climate.label);
   const brl = st.national.find(x => x.id === "BRL=X");
   add("paulo", "Acompanhando Ibovespa e dolar/real", brl ? "Dolar R$ " + fmt(brl.price, 2) : "");
-  add("caio", "Testando variantes das regras no historico", "Filtro macro: " + sgn(st.lab.bias.exp) + "R");
+  add("caio", "Comparando a versao 1 com o POI", "POI + macro: " + sgn(st.lab.v2macro.exp) + "R");
   add("nina", "Cuidando dos dados e das fontes", st.markets.length + " mercados lidos");
   return r;
 }
@@ -375,26 +403,32 @@ async function main() {
   const out = arg("--out"), every = arg("--every-hours") ? +arg("--every-hours") : null;
   const cfg = readConfig(arg("--config"));
   const now = Date.now(), founded = Date.parse(FOUNDED + "T00:00:00Z"), errors = [];
-  const byId = {}, live = [], sim = [], study = [], labRuns = { bias: [], flow: [], none: [] }, markets = [], series15 = {};
+  const byId = {}, live = [], sim = [], study = [], labRuns = { v1: [], v2: [], v2macro: [] }, markets = [], series15 = {};
 
   for (const m of MARKETS) {
     try {
       const b15 = (await candles(m, "15m")).filter(x => x.t + MIN15 <= now);
-      const b1h = (await candles(m, "1h")).filter(x => x.t + HOUR <= now);
+      const b5 = (await candles(m, "5m")).filter(x => x.t + MIN5 <= now);
+      const b1h = m.trade ? (await candles(m, "1h")).filter(x => x.t + HOUR <= now) : null;
       byId[m.id] = m;
       series15[m.short] = b15;
       const s15 = M.setups(b15, { macroMs: HOUR, fee: m.fee });
-      sim.push({ id: m.id, short: m.short, bars: b15, trades: s15.trades, fee: m.fee });
-      live.push({ id: m.id, short: m.short, bars: b15, trades: s15.trades.filter(t => b15[t.entryIdx].t >= founded), fee: m.fee });
-      const runs = {};
-      ["bias", "flow", "none"].forEach(a => {
-        const s = M.setups(b1h, { macroMs: 4 * HOUR, fee: m.fee, align: a });
-        runs[a] = s;
-        labRuns[a].push({ id: m.id, short: m.short, bars: b1h, trades: s.trades, fee: m.fee });
-      });
-      study.push(labRuns.bias[labRuns.bias.length - 1]);
-      const one = M.desk([labRuns.bias[labRuns.bias.length - 1]], Object.assign({}, cfg));
-      markets.push(readMarket(m, b15, s15, one, now));
+      const run = (bars, trades) => ({ id: m.id, short: m.short, bars, trades, fee: m.fee });
+      const v2 = M.poiSetups(b5, Object.assign({ fee: m.fee }, V2));
+      labRuns.v1.push(run(b15, s15.trades));
+      labRuns.v2.push(run(b5, M.poiSetups(b5, { fee: m.fee, htfMs: MIN15 }).trades));
+      labRuns.v2macro.push(run(b5, v2.trades));
+      let one = null, openTrade = null;
+      if (m.trade) {
+        sim.push(run(b5, v2.trades));
+        const mine = run(b5, v2.trades.filter(t => b5[t.entryIdx].t >= founded));
+        live.push(mine);
+        const fr = run(b1h, M.poiSetups(b1h, Object.assign({ fee: m.fee }, V2_1H)).trades);
+        study.push(fr);
+        one = M.desk([fr], Object.assign({}, cfg));
+        openTrade = M.desk([mine], Object.assign({}, cfg)).open[0] || null;
+      }
+      markets.push(readMarket(m, b15, s15, one, now, b5, openTrade));
     } catch (e) { errors.push(m.short + ": " + e.message); }
   }
   try {
@@ -414,12 +448,13 @@ async function main() {
   const headlines = (await news(now)).slice(0, 20);
   const glob = await macro(GLOBAL), nat = await macro(NATIONAL);
   const st = {
-    version: 2, updatedAt: now, nextAt: every ? now + every * HOUR : null, founded: FOUNDED,
+    version: 3, updatedAt: now, nextAt: every ? now + every * HOUR : null, founded: FOUNDED,
     config: cfg, profile: profileOf(cfg), markets, global: glob, national: nat, news: headlines, errors,
     desk: {
       today: { day: today, stops: stopsToday, trades: tradesToday, closed: closedToday,
                reopenAt: closedToday ? Date.parse(today + "T00:00:00Z") + DAY : null },
-      live: deskSummary(L, byId, cfg), sim: deskSummary(S, byId, cfg), study: deskSummary(T, byId, cfg)
+      live: deskSummary(L, byId, cfg), sim: deskSummary(S, byId, cfg), study: deskSummary(T, byId, cfg),
+      method: "v2", assets: MARKETS.filter(m => m.trade).map(m => m.short)
     },
     lab, people: PEOPLE
   };
@@ -439,4 +474,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
-module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions };
+module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity };

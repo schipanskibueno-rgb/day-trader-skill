@@ -92,6 +92,7 @@ h3 { font: 600 13px/1.2 var(--display); text-transform: uppercase; letter-spacin
 .row { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; padding: 8px 10px; background: var(--panel-2); border-radius: 8px; }
 .row > div { min-width: 0; }
 .pill { font: 600 11px/1 var(--mono); padding: 4px 7px; border-radius: 999px; white-space: nowrap; }
+.card > .pill { display: inline-block; white-space: normal; line-height: 1.35; border-radius: 10px; max-width: 100%; }
 .pill.buy { background: color-mix(in srgb, var(--buy) 18%, transparent); color: var(--buy); }
 .pill.sell { background: color-mix(in srgb, var(--sell) 18%, transparent); color: var(--sell); }
 .pill.hold { background: color-mix(in srgb, var(--hold) 14%, transparent); color: var(--hold); }
@@ -363,7 +364,7 @@ function viewBroker(v) {
   v.append(blocksView(L.blocks, cfg.stopUsd));
 
   const S = D.sim;
-  v.append(el("h3", null, "Simulacao: ultimos 60 dias em 15m"));
+  v.append(el("h3", null, isV2() ? "Simulacao: ultimos 60 dias, POI em 5m (BTC e ouro)" : "Simulacao: ultimos 60 dias em 15m"));
   const k2 = el("div", "kpis");
   k2.append(kpi("trades / acerto", S.n + " / " + S.winRate + "%"), kpi("resultado", (S.pnl >= 0 ? "+" : "") + usd(S.pnl), S.pnl >= 0 ? "pos" : "neg"),
             kpi("media por trade", sgn(S.expectancy) + "R", S.expectancy >= 0 ? "pos" : "neg"), kpi("dias fechados por 2 stops", String(S.closedDays.length)));
@@ -373,7 +374,7 @@ function viewBroker(v) {
   const ss = el("div", "rows"); S.closed.forEach(t => ss.append(tradeRow(t))); v.append(ss);
 
   const Y = D.study;
-  v.append(el("h3", null, "Validacao fractal: mesmas regras em 1h, 2 anos"));
+  v.append(el("h3", null, isV2() ? "Validacao fractal: POI em 1h com liquidez de 4h, 2 anos" : "Validacao fractal: mesmas regras em 1h, 2 anos"));
   const k3 = el("div", "kpis");
   k3.append(kpi("trades / acerto", Y.n + " / " + Y.winRate + "%"), kpi("resultado", (Y.pnl >= 0 ? "+" : "") + usd(Y.pnl), Y.pnl >= 0 ? "pos" : "neg"),
             kpi("media por trade", sgn(Y.expectancy) + "R", Y.expectancy >= 0 ? "pos" : "neg"), kpi("maior queda", usd(Y.maxDD), "neg"));
@@ -383,7 +384,7 @@ function viewBroker(v) {
 }
 
 function viewMarkets(v) {
-  v.append(el("h3", null, "Mercados da mesa · micro 15m, macro 1h"));
+  v.append(el("h3", null, isV2() ? "Mercados · a mesa opera BTC e ouro: liquidez 15m, POI 5m, macro 1h" : "Mercados da mesa · micro 15m, macro 1h"));
   state.markets.forEach(m => {
     const c = el("div", "card"), head = el("div", "head");
     const t = el("div"); t.append(el("b", null, m.label)); t.append(el("div", "small muted", m.open ? "aberto" : "fechado agora"));
@@ -399,10 +400,14 @@ function viewMarkets(v) {
       add("Clareza macro", mc.bias ? flowWord(mc.bias) : "sem clareza");
       add("Saude da tendencia", mc.health > 0 ? "impulsos ganhando amplitude" : mc.health < 0 ? "impulsos perdendo amplitude" : "-");
     }
+    if (m.liquidity) {
+      add("Liquidez de 15m acima", m.liquidity.above === null ? "-" : fmt(m.liquidity.above, m.dec) + " (" + m.liquidity.aboveAtr + " ATR)");
+      add("Liquidez de 15m abaixo", m.liquidity.below === null ? "-" : fmt(m.liquidity.below, m.dec) + " (" + m.liquidity.belowAtr + " ATR)");
+    }
     add("Volume relativo (15m)", m.relVol === null ? "-" : fmt(m.relVol, 2) + "x");
     m.regions.forEach(z => add("Regiao " + (z.dir > 0 ? "compradora" : "vendedora") + (z.aligned ? " alinhada" : ""),
       "VAL " + fmt(z.val, m.dec) + " · POC " + fmt(z.poc, m.dec) + " · VAH " + fmt(z.vah, m.dec)));
-    if (m.study) add("Historico 1h (2 anos)", m.study.n + " trades, " + sgn(m.study.exp) + "R");
+    if (m.study) add(isV2() ? "POI em 1h (2 anos)" : "Historico 1h (2 anos)", m.study.n + " trades, " + sgn(m.study.exp) + "R");
     c.append(kv);
     c.append(spark(m.spark, m.chg24h >= 0 ? "#3fd08f" : "#ff6b6b"));
     v.append(c);
@@ -418,6 +423,15 @@ function viewMarkets(v) {
   });
   v.append(rows);
 }
+
+// lab rows: version 1 against the POI (state version 3), or the older variants of version 1
+function labRows() {
+  const L = state.lab || {};
+  if (L.v1) return [["Versao 1: regioes de volume em 15m", "versao 1", L.v1], ["POI em 5m apos limpar liquidez", "POI", L.v2],
+                    ["POI + macro 1h (a da mesa e do robo)", "POI+macro", L.v2macro]];
+  return [["Filtro macro completo (fluxo + controle)", "macro completo", L.bias], ["So fluxo de pivos", "so fluxo", L.flow], ["Sem filtro macro", "sem filtro", L.none]];
+}
+function isV2() { return state.desk && state.desk.method === "v2"; }
 
 function viewResearch(v) {
   v.append(el("h3", null, "Melhores cenarios para " + (deskClosed() ? "a proxima abertura" : "agora")));
@@ -449,9 +463,9 @@ function viewResearch(v) {
     r.append(left); list.append(r);
   });
   v.append(list);
-  v.append(el("h3", null, "Laboratorio (Caio): variantes em 1h, 2 anos"));
+  v.append(el("h3", null, isV2() ? "Laboratorio (Caio): versao 1 contra o POI, ultimos 60 dias" : "Laboratorio (Caio): variantes em 1h, 2 anos"));
   const lab = el("div", "rows");
-  [["Filtro macro completo (fluxo + controle)", state.lab.bias], ["So fluxo de pivos", state.lab.flow], ["Sem filtro macro", state.lab.none]].forEach(([n, x]) => {
+  labRows().forEach(([n, , x]) => {
     const r = el("div", "row"), left = el("div"); left.append(el("div", null, n), el("div", "small muted", x.n + " trades, " + x.win + "% de acerto"));
     r.append(left, el("b", "num " + (x.exp >= 0 ? "pos" : "neg"), sgn(x.exp) + "R")); lab.append(r);
   });
@@ -658,7 +672,7 @@ function paintScreens() {
       c.fillStyle = "#8b9cae"; c.fillText("Pesquisa segue estudando: noticias, reacoes e melhores ativos", 44, 270);
       return;
     }
-    c.fillStyle = "#2dd4bf"; c.font = "600 34px 'Chakra Petch', sans-serif"; c.fillText("MESA DE TRADE · MICRO 15M · MACRO 1H", 30, 50);
+    c.fillStyle = "#2dd4bf"; c.font = "600 34px 'Chakra Petch', sans-serif"; c.fillText(isV2() ? "MESA DE TRADE · POI 5M · LIQUIDEZ 15M · MACRO 1H" : "MESA DE TRADE · MICRO 15M · MACRO 1H", 30, 50);
     c.fillStyle = "#8b9cae"; c.font = "22px 'IBM Plex Mono', monospace";
     c.fillText("stop " + usd(cfg.stopUsd) + " · alvo 3R · stops hoje " + T.stops + "/" + cfg.maxStopsPerDay, W - 600, 48);
     state.markets.forEach((m, i) => {
@@ -668,7 +682,8 @@ function paintScreens() {
       c.font = "24px 'IBM Plex Mono', monospace"; c.fillStyle = m.chg24h >= 0 ? "#3fd08f" : "#ff6b6b"; c.fillText(sgn(m.chg24h) + "%", x + 340, y + 4);
       c.fillStyle = "#8b9cae"; c.fillText(fmt(m.price, m.dec) + " · fluxo " + flowWord(m.macro ? m.macro.flow : 0), x + 14, y + 40);
       c.fillStyle = m.best ? (m.best.dir > 0 ? "#3fd08f" : "#ff6b6b") : !m.open ? "#8b9cae" : "#f2b544"; c.font = "600 21px 'IBM Plex Mono', monospace";
-      c.fillText(m.best ? (m.best.dir > 0 ? "REGIAO COMPRADORA " : "REGIAO VENDEDORA ") + m.best.distAtr + " ATR" : !m.open ? "MERCADO FECHADO" : m.macro && !m.macro.bias ? "SEM CLAREZA" : "AGUARDANDO CENARIO", x + 14, y + 76);
+      c.fillText(m.best ? (m.best.dir > 0 ? "REGIAO COMPRADORA " : "REGIAO VENDEDORA ") + m.best.distAtr + " ATR" : !m.open ? "MERCADO FECHADO"
+        : isV2() && !m.trade ? "OBSERVANDO" : m.macro && !m.macro.bias ? "SEM CLAREZA" : isV2() ? "AGUARDANDO LIQUIDEZ + POI" : "AGUARDANDO CENARIO", x + 14, y + 76);
     });
   });
   paint("newswall", (c, W, H) => {
@@ -685,7 +700,7 @@ function paintScreens() {
     const S = state.desk.sim, Y = state.desk.study;
     c.fillStyle = "#3b2a6b"; c.font = "600 26px 'Chakra Petch', sans-serif"; c.fillText("BLOCOS DE 25", 18, 36);
     c.font = "17px 'IBM Plex Mono', monospace"; c.fillStyle = "#1c2a36";
-    c.fillText("60d 15m: " + S.n + " trades " + S.winRate + "% " + sgn(S.expectancy) + "R", 18, 72);
+    c.fillText((isV2() ? "60d POI 5m: " : "60d 15m: ") + S.n + " trades " + S.winRate + "% " + sgn(S.expectancy) + "R", 18, 72);
     c.fillText("1h 2 anos: " + Y.n + " trades " + Y.winRate + "% " + sgn(Y.expectancy) + "R", 18, 98);
     c.fillText("equilibrio com 3R: 25% de acerto", 18, 124);
     let y = 160; Y.blocks.slice(-5).forEach((b, i) => { c.fillStyle = b.usd >= 0 ? "#137a4b" : "#b3261e";
@@ -704,14 +719,15 @@ function paintScreens() {
     c.fillStyle = "#f3f5f2"; c.fillRect(0, 0, W, H);
     c.fillStyle = "#1c2a36"; c.font = "600 28px 'Chakra Petch', sans-serif"; c.fillText("LABORATORIO", 20, 38);
     c.font = "18px 'IBM Plex Mono', monospace";
-    [["macro completo", state.lab.bias], ["so fluxo", state.lab.flow], ["sem filtro", state.lab.none]].forEach(([n, x], i) => {
+    labRows().map(r => [r[1], r[2]]).forEach(([n, x], i) => {
       c.fillStyle = x.exp >= 0 ? "#137a4b" : "#b3261e"; c.fillText(n.padEnd(16) + sgn(x.exp) + "R (" + x.n + ")", 20, 84 + i * 30);
     });
     c.fillStyle = "#5b6672"; c.fillText("regra so muda apos 25 trades", 20, 190);
   });
   const S = state.desk.sim, L = state.desk.live, glob = state.global, nat = state.national;
   const mdesc = m => m ? [["preco", fmt(m.price, m.dec)], ["fluxo 1h", flowWord(m.macro ? m.macro.flow : 0)], ["clareza", m.macro && m.macro.bias ? flowWord(m.macro.bias) : "sem"],
-    ["regiao", m.best ? (m.best.dir > 0 ? "COMPRA " : "VENDA ") + m.best.distAtr + "ATR" : "-"], ["mercado", m.open ? "aberta" : "fechado"]] : [];
+    m.liquidity ? ["liquidez", (m.macro && m.macro.bias < 0 ? "acima " + (m.liquidity.aboveAtr ?? "-") : "abaixo " + (m.liquidity.belowAtr ?? "-")) + "ATR"]
+      : ["regiao", m.best ? (m.best.dir > 0 ? "COMPRA " : "VENDA ") + m.best.distAtr + "ATR" : "-"], ["mercado", m.open ? "aberta" : "fechado"]] : [];
   if (closed) ["rafa", "bia", "duda", "marta", "teo"].forEach(id => { paint(id, (c, W, H) => dark(c, W, H, "#000")); paint(id + "2", (c, W, H) => dark(c, W, H, "#000")); });
   else {
     rowsScreen("rafa", "BTC", mdesc(mk("BTC"))); sparkScreen("rafa2", "BTC 24h", mk("BTC") && mk("BTC").spark);
@@ -736,7 +752,7 @@ function paintScreens() {
   sparkScreen("paulo2", "Dolar R$", (nat.find(m => m.id === "BRL=X") || {}).spark);
   rowsScreen("helena", "RANKING", state.research.ranking.slice(0, 5).map(r => [r.asset, fmt(r.score, 1)]), "#f472b6");
   sparkScreen("helena2", "patrimonio", [cfg.capital].concat(L.curve.map(p => p.eq)));
-  rowsScreen("caio", "VARIANTES", [["completo", sgn(state.lab.bias.exp) + "R"], ["so fluxo", sgn(state.lab.flow.exp) + "R"], ["sem filtro", sgn(state.lab.none.exp) + "R"]]);
+  rowsScreen("caio", "VARIANTES", labRows().map(r => [r[1], sgn(r[2].exp) + "R"]));
   sparkScreen("caio2", "XAU 24h", mk("XAU") && mk("XAU").spark);
   rowsScreen("nina", "DADOS", [["mercados", String(state.markets.length)], ["indicadores", String(glob.length + nat.length)], ["noticias", String(state.news.length)], ["falhas", String(state.errors.length)]]);
   sparkScreen("nina2", "BTC 24h", mk("BTC") && mk("BTC").spark);
