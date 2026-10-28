@@ -331,7 +331,8 @@ function tradeRow(t) {
   const r = el("div", "row"), left = el("div"), d = t.dec === undefined ? 2 : t.dec;
   left.append(el("div", null, (t.dir > 0 ? "Compra " : "Venda ") + t.asset + (t.entryT ? " · " + when(t.entryT) : "")));
   left.append(el("div", "small muted num", "entrada " + fmt(t.entry, d) + " · stop " + fmt(t.stop, d) + " · alvo " + fmt(t.take, d)));
-  if (t.consult) left.append(el("div", "small muted", "consulta antes da ordem: " + Object.keys(t.consult).map(k => k + " " + t.consult[k].word).join(" · ")));
+  if (t.consult) left.append(el("div", "small muted", "consulta antes da ordem: " + Object.keys(t.consult).map(k => k + " " + t.consult[k].word +
+    (t.consult[k].radar ? " (Radar " + t.consult[k].radar.code + ")" : "")).join(" · ")));
   r.append(left);
   if (!t.open && t.usd !== null) r.append(el("b", "num " + (t.usd > 0 ? "pos" : "neg"), (t.usd > 0 ? "+" : "") + usd(t.usd) + " (" + sgn(t.r) + "R)"));
   else if (t.open) r.append(el("b", "num " + (t.openUsd >= 0 ? "pos" : "neg"), "aberto " + (t.openUsd >= 0 ? "+" : "") + usd(t.openUsd)));
@@ -464,7 +465,8 @@ function viewCharts(v) {
   v.append(lg);
   v.append(el("h3", null, "O que os agentes leem antes de operar"));
   const kv = el("dl", "kv"), add = (a, b) => kv.append(el("dt", null, a), el("dd", null, b));
-  Object.keys(pack.reading).forEach(k => add("Estrutura " + k, pack.reading[k].word));
+  Object.keys(pack.reading).forEach(k => { const r = pack.reading[k];
+    add("Estrutura " + k, r.word + (r.radar ? " · Radar " + r.radar.code + " " + r.radar.force + "%" : "")); });
   add("Liquidez acima", pack.liquidity.above.length ? pack.liquidity.above.map(x => fmt(x, pack.dec)).join(" · ") : "-");
   add("Liquidez abaixo", pack.liquidity.below.length ? pack.liquidity.below.map(x => fmt(x, pack.dec)).join(" · ") : "-");
   add("Varridas em 24h", String(pack.liquidity.swept.length));
@@ -481,7 +483,7 @@ function viewCharts(v) {
     });
     v.append(r);
   }
-  v.append(el("p", "note", "Material de consulta: antes de cada ordem a mesa le estes quatro tempos e registra a leitura junto da operacao (aba Corretora). Os graficos sao da ultima leitura da agencia, que acontece a cada 2h; nao sao ao vivo."));
+  v.append(el("p", "note", "Material de consulta: antes de cada ordem a mesa le estes quatro tempos e o sinal do Radar de Ativos em cada um, e registra a leitura junto da operacao (aba Corretora). Os mesmos candles aparecem no Radar de Ativos. Os graficos sao da ultima leitura da agencia, que acontece a cada 2h; nao sao ao vivo."));
 }
 
 function viewMarkets(v) {

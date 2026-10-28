@@ -1,0 +1,806 @@
+<title>Radar de Ativos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: mesa de análise em coluna — controles, card do sinal, gráfico com níveis, confluência e os módulos de análise empilhados (2 colunas no desktop) */
+:root{
+  --bg:#F2F4F3; --surface:#FFFFFF; --sunk:#E7EBE9; --line:#D2D9D6;
+  --ink:#141E1A; --muted:#5A6A64; --accent:#2F4FC9; --accent-soft:#E2E7FA; --on-accent:#FFFFFF;
+  --up:#14805A; --up-soft:#DCF0E6; --down:#C0392A; --down-soft:#F8E0DC; --warn:#9C6206; --warn-soft:#F5EAD1;
+  --candle-up:#1D9A6C; --candle-down:#D2493A; --sma20:#C27A12; --sma50:#7A56C2; --band:rgba(47,79,201,.07);
+  --f-display:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1311; --surface:#151D1A; --sunk:#1C2622; --line:#2A3631;
+  --ink:#E5EDE9; --muted:#93A39C; --accent:#8EA4FF; --accent-soft:#1D2646; --on-accent:#0D1311;
+  --up:#4CC891; --up-soft:#14352A; --down:#F07862; --down-soft:#3A1E19; --warn:#E3A83F; --warn-soft:#3A2D14;
+  --candle-up:#4CC891; --candle-down:#F07862; --sma20:#E3A83F; --sma50:#B49CF0; --band:rgba(142,164,255,.09); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1311; --surface:#151D1A; --sunk:#1C2622; --line:#2A3631;
+  --ink:#E5EDE9; --muted:#93A39C; --accent:#8EA4FF; --accent-soft:#1D2646; --on-accent:#0D1311;
+  --up:#4CC891; --up-soft:#14352A; --down:#F07862; --down-soft:#3A1E19; --warn:#E3A83F; --warn-soft:#3A2D14;
+  --candle-up:#4CC891; --candle-down:#F07862; --sma20:#E3A83F; --sma50:#B49CF0; --band:rgba(142,164,255,.09); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1040px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);letter-spacing:-.02em;margin:0;line-height:1.1;text-wrap:balance}
+h2{font-family:var(--f-display);font-size:19px;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;font-size:14px;max-width:65ch}
+.demo{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);background:var(--warn-soft);padding:4px 8px;border-radius:4px}
+.demo.live{color:var(--up);background:var(--up-soft)}
+.wrap.busy .card:not(.hero){opacity:.45;transition:opacity .2s}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--muted)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+select{font:600 15px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;min-width:0;max-width:100%}
+.seg{display:inline-flex;background:var(--sunk);border-radius:8px;padding:3px;gap:2px}
+.seg button{font:600 13px var(--f-body);background:transparent;border:0;color:var(--muted);padding:6px 11px;border-radius:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg.mode button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.btn{font:600 14px var(--f-body);background:var(--accent);color:var(--on-accent);border:0;border-radius:8px;padding:9px 14px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:780px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.note{font-size:12.5px;color:var(--muted);margin:0;max-width:70ch}
+
+/* card do sinal */
+.hero-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.hero .tk{font-family:var(--f-display);font-weight:700;font-size:32px;line-height:1;letter-spacing:-.02em}
+.hero .meta{color:var(--muted);font-size:13.5px;margin-top:6px}
+.sig{font:700 15px var(--f-mono);letter-spacing:.03em;padding:8px 14px;border-radius:999px;border:1.5px solid currentColor;white-space:nowrap}
+.sig.up{background:var(--up-soft)} .sig.down{background:var(--down-soft)} .sig.flat{background:var(--sunk)}
+.force{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}
+.force .big{font:700 44px/1 var(--f-display);letter-spacing:-.03em}
+.force small{display:block;font-size:13px;color:var(--muted);margin-top:4px}
+.meter{flex:1;min-width:160px;display:flex;flex-direction:column;gap:6px}
+.bar{height:8px;border-radius:4px;background:var(--sunk);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:600 12px var(--f-body);padding:3px 9px;border-radius:999px;white-space:nowrap;background:var(--sunk);color:var(--muted)}
+.chip.up{background:var(--up-soft);color:var(--up)} .chip.down{background:var(--down-soft);color:var(--down)} .chip.warn{background:var(--warn-soft);color:var(--warn)}
+.levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-width:520px){.levels{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.lv{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.lv b{font:600 17px var(--f-mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.lv span{font-size:12px;color:var(--muted)}
+.lv.entry{border-color:var(--accent);background:var(--accent-soft)}
+.lv.stop{border-color:var(--down);background:var(--down-soft)}
+.lv.tp{border-color:var(--up);background:var(--up-soft)}
+.scen{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+@media (max-width:520px){.scen{grid-template-columns:minmax(0,1fr)}}
+.sc{border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.sc.up{background:var(--up-soft)} .sc.down{background:var(--down-soft)}
+.sc h3{margin:0;font:700 14px var(--f-body)}
+.sc dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:13.5px}
+.sc dt{color:var(--muted)} .sc dd{margin:0;font-family:var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.warnbox{background:var(--warn-soft);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:13.5px;display:flex;flex-direction:column;gap:4px}
+.warnbox strong{color:var(--warn)}
+.legal{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin:0}
+
+/* gráfico */
+.chartbox{min-width:0}
+svg text{font-family:var(--f-mono);font-size:10px;fill:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+/* tabelas */
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl td{padding:7px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl td.v{font-family:var(--f-mono);text-align:right;white-space:nowrap;padding-left:8px;font-variant-numeric:tabular-nums}
+.tbl td.c{text-align:right;width:1%;padding-left:8px}
+.tbl tr:last-child td{border-bottom:0}
+.why{display:block;font-size:12px;color:var(--muted)}
+.ma{display:grid;grid-template-columns:auto 1fr 1fr;gap:4px 12px;font-size:13px;align-items:baseline}
+.ma .h{font-size:11px;color:var(--muted);font-family:var(--f-mono);letter-spacing:.05em;text-transform:uppercase}
+.ma .h:not(:first-child),.ma .n{text-align:right}
+.ma .n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;font-size:13.5px;margin:0}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-width:520px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--sunk);border-radius:8px;padding:9px 11px}
+.stat b{display:block;font:600 18px var(--f-mono);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.hours{display:flex;flex-direction:column;gap:6px}
+.hr{border-radius:8px;padding:8px 12px;font-size:13.5px}
+.hr.good{background:var(--up-soft)} .hr.bad{background:var(--down-soft)}
+.hr b{font-family:var(--f-mono);font-size:13px;display:block}
+.hr.good b{color:var(--up)} .hr.bad b{color:var(--down)}
+.ai{background:var(--accent-soft);border:0}
+.ai p.txt{margin:0;white-space:pre-wrap;max-width:70ch}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.bubble{background:var(--up-soft);border-radius:12px 12px 12px 2px;padding:14px 16px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.hist{display:flex;flex-direction:column;gap:0;font-size:13.5px}
+.hist div{display:grid;grid-template-columns:auto 1fr auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.hist div:last-child{border-bottom:0}
+footer{font-size:12px;color:var(--muted);max-width:75ch}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Radar de Ativos</h1>
+      <p class="sub">Análise técnica automática com mais de 20 indicadores, estrutura de mercado, Monte Carlo e teste da regra no histórico.</p>
+    </div>
+    <span class="demo" id="srcTag">Dados simulados</span>
+  </header>
+
+  <div class="controls">
+    <select id="asset" aria-label="Ativo"></select>
+    <div class="seg" id="tfSeg" role="group" aria-label="Tempo gráfico"></div>
+    <div class="seg mode" id="modeSeg" role="group" aria-label="Modo de exibição">
+      <button type="button" data-m="sinal">Sinal</button>
+      <button type="button" data-m="niveis">Níveis técnicos</button>
+    </div>
+    <button class="btn" id="refresh" type="button">Nova análise</button>
+  </div>
+
+  <section class="card hero" id="hero" aria-live="polite"></section>
+
+  <section class="card">
+    <div class="card-h"><h2>Gráfico</h2><div class="legend" id="legend"></div></div>
+    <div class="chartbox" id="chart"></div>
+  </section>
+
+  <section class="card" id="desk" hidden></section>
+
+  <section class="card" id="conf"></section>
+  <section class="card" id="tech"></section>
+
+  <div class="grid2">
+    <section class="card" id="smc"></section>
+    <section class="card" id="dow"></section>
+  </div>
+  <div class="grid2">
+    <section class="card" id="mc"></section>
+    <section class="card" id="bt"></section>
+  </div>
+
+  <section class="card ai">
+    <div class="card-h"><h2>Leitura da IA</h2><span class="note" id="aiState"></span></div>
+    <p class="txt" id="aiText"></p>
+    <div class="row"><button class="btn" id="aiBtn" type="button" hidden>Explicar com IA</button></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card" id="hours"></section>
+    <section class="card">
+      <h2>Notícias e sentimento</h2>
+      <p class="note" style="font-size:14px">A versão real liga uma API de notícias (CryptoPanic para cripto, feeds de notícias para a B3 e o câmbio). A IA lê as manchetes do ativo e devolve sentimento, impacto e um resumo. Este protótipo não acessa a internet, então o bloco fica vazio de propósito. Na VTX, é daqui que sai o texto de "análise fundamentalista".</p>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="card-h"><h2>Mensagem para o WhatsApp</h2><span class="note" id="copyState"></span></div>
+    <div class="bubble" id="wpp"></div>
+    <div class="row"><button class="btn" id="copyBtn" type="button">Copiar mensagem</button></div>
+  </section>
+
+  <section class="card">
+    <div class="card-h"><h2>Histórico de análises</h2><button class="btn ghost" id="clearHist" type="button">Limpar</button></div>
+    <div class="hist" id="hist"></div>
+  </section>
+
+  <footer>BTC e OURO mostram candles reais de 2, 5, 10 e 15 minutos gravados pela agência Pregão Virtual a cada 2 horas (Binance e futuros CME). As outras criptomoedas usam preços reais do CoinGecko quando o conector está ligado na sua conta; os demais ativos ainda são simulados. Na versão final, os candles completos (abertura, máxima, mínima e volume) vêm de APIs como Binance (cripto), brapi.dev (B3) e Twelve Data (câmbio, índices e commodities), e todo o cálculo deste painel roda igual. O conteúdo é gerado por algoritmo, não é recomendação de investimento e resultados passados não garantem resultados futuros.</footer>
+</div>
+
+<script>
+(function(G){
+"use strict";
+const E={};
+function rng(seed){let s=seed>>>0;return function(){s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+function hash(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+E.rng=rng;E.hash=hash;
+
+// f = raiz da fração de um dia que o candle representa (escala da volatilidade)
+E.TF={"2m":{min:2,f:0.037},"5m":{min:5,f:0.059},"10m":{min:10,f:0.083},"15m":{min:15,f:0.1},"1h":{min:60,f:0.2},"4h":{min:240,f:0.41},"1D":{min:1440,f:1}};
+
+function pushCandle(s,o){
+  const r=s.r,v=s.vol;s.k++;
+  const trend=Math.sin(s.k/45+s.phase)*v*0.08+Math.sin(s.k/13+s.phase*2)*v*0.04;
+  const z=gauss(r);const ret=s.drift+trend+v*z;
+  const c=o*Math.exp(ret);
+  const h=Math.max(o,c)*Math.exp(Math.abs(gauss(r))*v*0.45);
+  const l=Math.min(o,c)*Math.exp(-Math.abs(gauss(r))*v*0.45);
+  const vol=(s.a.baseVol||1000)*(0.6+0.8*r())*(1+Math.abs(z)*0.6);
+  s.candles.push({o,h,l,c,v:vol,t:0});return c;
+}
+E.newSeries=function(a,tf,n,now){
+  n=n||600;const T=E.TF[tf];const r=rng(hash(a.tk+"|"+tf));
+  const s={a,tf,r,vol:a.vol*T.f,drift:a.drift*T.f*T.f,k:0,phase:r()*6.283,candles:[]};
+  let p=100;for(let i=0;i<n;i++)p=pushCandle(s,p);
+  const sc=a.ref/s.candles[n-1].c;
+  s.candles.forEach(k=>{k.o*=sc;k.h*=sc;k.l*=sc;k.c*=sc});
+  const step=T.min*60000;const last=Math.floor((now||Date.now())/step)*step;
+  s.candles.forEach((k,i)=>k.t=last-(n-1-i)*step);
+  return s;
+};
+E.step=function(s){const last=s.candles[s.candles.length-1];pushCandle(s,last.c);const nk=s.candles[s.candles.length-1];nk.t=last.t+E.TF[s.tf].min*60000;s.candles.shift()};
+
+// ---------- indicadores (todos causais: o valor em i só usa dados até i) ----------
+function sma(x,n){const o=Array(x.length).fill(null);for(let i=n-1;i<x.length;i++){let s=0,ok=true;for(let j=i-n+1;j<=i;j++){if(x[j]==null){ok=false;break}s+=x[j]}if(ok)o[i]=s/n}return o}
+function ema(x,n){const o=Array(x.length).fill(null);const k=2/(n+1);let e=null,cnt=0,acc=0;for(let i=0;i<x.length;i++){if(x[i]==null)continue;if(e==null){acc+=x[i];cnt++;if(cnt===n){e=acc/n;o[i]=e}}else{e=x[i]*k+e*(1-k);o[i]=e}}return o}
+function rsi(c,n){const o=Array(c.length).fill(null);let g=0,l=0;for(let i=1;i<c.length;i++){const d=c[i]-c[i-1],G=d>0?d:0,L=d<0?-d:0;if(i<=n){g+=G;l+=L;if(i===n){g/=n;l/=n;o[i]=l===0?100:100-100/(1+g/l)}}else{g=(g*(n-1)+G)/n;l=(l*(n-1)+L)/n;o[i]=l===0?100:100-100/(1+g/l)}}return o}
+function atrAdx(h,l,c,n){const N=c.length,atr=Array(N).fill(null),adx=Array(N).fill(null),pdi=Array(N).fill(null),ndi=Array(N).fill(null);let str=0,sp=0,sn=0,ax=null;const dxs=[];
+  for(let i=1;i<N;i++){const tr=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));const up=h[i]-h[i-1],dn=l[i-1]-l[i];const p=up>dn&&up>0?up:0,m=dn>up&&dn>0?dn:0;
+    if(i<=n){str+=tr;sp+=p;sn+=m;if(i<n)continue}else{str=str-str/n+tr;sp=sp-sp/n+p;sn=sn-sn/n+m}
+    atr[i]=str/n;const P=100*sp/str,M=100*sn/str;pdi[i]=P;ndi[i]=M;const dx=P+M===0?0:100*Math.abs(P-M)/(P+M);
+    if(ax==null){dxs.push(dx);if(dxs.length===n){ax=dxs.reduce((a,b)=>a+b,0)/n;adx[i]=ax}}else{ax=(ax*(n-1)+dx)/n;adx[i]=ax}}
+  return{atr,adx,pdi,ndi}}
+function hl(h,l,i,n){let H=-Infinity,L=Infinity;for(let j=i-n+1;j<=i;j++){if(h[j]>H)H=h[j];if(l[j]<L)L=l[j]}return[H,L]}
+
+E.indicators=function(cs,opt){
+  const N=cs.length,c=cs.map(k=>k.c),h=cs.map(k=>k.h),l=cs.map(k=>k.l),v=cs.map(k=>k.v);
+  const I={c,h,l,v,sma:{},ema:{},noVol:!!(opt&&opt.noVol)};
+  [10,20,50,100,200].forEach(n=>{I.sma[n]=sma(c,n);I.ema[n]=ema(c,n)});
+  const e12=ema(c,12),e26=ema(c,26);I.macd=c.map((_,i)=>e26[i]==null?null:e12[i]-e26[i]);I.macdSig=ema(I.macd,9);I.hist=I.macd.map((m,i)=>I.macdSig[i]==null?null:m-I.macdSig[i]);
+  I.rsi=rsi(c,14);Object.assign(I,atrAdx(h,l,c,14));
+  I.k=Array(N).fill(null);I.wr=Array(N).fill(null);
+  for(let i=13;i<N;i++){const[H,L]=hl(h,l,i,14);I.k[i]=H===L?50:100*(c[i]-L)/(H-L);I.wr[i]=H===L?-50:-100*(H-c[i])/(H-L)}
+  I.d=sma(I.k,3);
+  const tp=cs.map(k=>(k.h+k.l+k.c)/3);I.cci=Array(N).fill(null);
+  for(let i=19;i<N;i++){let m=0;for(let j=i-19;j<=i;j++)m+=tp[j];m/=20;let md=0;for(let j=i-19;j<=i;j++)md+=Math.abs(tp[j]-m);md/=20;I.cci[i]=md===0?0:(tp[i]-m)/(0.015*md)}
+  I.mfi=Array(N).fill(null);
+  for(let i=14;i<N;i++){let pos=0,neg=0;for(let j=i-13;j<=i;j++){const f=tp[j]*v[j];if(tp[j]>tp[j-1])pos+=f;else if(tp[j]<tp[j-1])neg+=f}I.mfi[i]=neg===0?100:100-100/(1+pos/neg)}
+  const mfv=cs.map(k=>k.h===k.l?0:((k.c-k.l)-(k.h-k.c))/(k.h-k.l)*k.v);I.cmf=Array(N).fill(null);
+  for(let i=19;i<N;i++){let a=0,b=0;for(let j=i-19;j<=i;j++){a+=mfv[j];b+=v[j]}I.cmf[i]=b?a/b:0}
+  I.bbM=I.sma[20];I.bbU=Array(N).fill(null);I.bbL=Array(N).fill(null);
+  for(let i=19;i<N;i++){const m=I.bbM[i];let s=0;for(let j=i-19;j<=i;j++)s+=(c[j]-m)**2;const sd=Math.sqrt(s/20);I.bbU[i]=m+2*sd;I.bbL[i]=m-2*sd}
+  return I;
+};
+
+// ---------- votação ----------
+// tendência: segue o movimento. osciladores: apontam exageros (reversão à média).
+E.votesAt=function(I,i){
+  const c=I.c[i],trend=[],osc=[];
+  [10,20,50,100,200].forEach(n=>{const s=I.sma[n][i],e=I.ema[n][i];if(s!=null)trend.push({id:"sma"+n,k:"MMS "+n,val:s,price:true,vote:c>s?1:-1});if(e!=null)trend.push({id:"ema"+n,k:"MME "+n,val:e,price:true,vote:c>e?1:-1})});
+  if(I.hist[i]!=null)trend.push({id:"macd",k:"MACD (12, 26, 9)",val:I.hist[i],price:true,vote:I.hist[i]>0?1:-1,why:I.hist[i]>0?"Histograma positivo":"Histograma negativo"});
+  if(I.adx[i]!=null){const strong=I.adx[i]>=20;trend.push({id:"adx",k:"ADX (14)",val:I.adx[i],extra:{pdi:I.pdi[i],ndi:I.ndi[i]},vote:strong?(I.pdi[i]>I.ndi[i]?1:-1):0,why:strong?(I.pdi[i]>I.ndi[i]?"Tendência com força, +DI na frente":"Tendência com força, −DI na frente"):"Abaixo de 20: sem tendência clara"})}
+  if(!I.noVol&&I.cmf[i]!=null)trend.push({id:"cmf",k:"CMF (20)",val:I.cmf[i],vote:I.cmf[i]>0.05?1:I.cmf[i]<-0.05?-1:0,why:I.cmf[i]>0.05?"Fluxo de dinheiro entrando":I.cmf[i]<-0.05?"Fluxo de dinheiro saindo":"Fluxo equilibrado"});
+  const R=I.rsi[i];osc.push({id:"rsi",k:"IFR / RSI (14)",val:R,vote:R<30?1:R>70?-1:0,why:R<30?"Sobrevendido":R>70?"Sobrecomprado":"Zona neutra"});
+  const K=I.k[i],D=I.d[i];osc.push({id:"stoch",k:"Estocástico (14, 3)",val:K,extra:{d:D},vote:K<20?1:K>80?-1:0,why:K<20?"Sobrevendido":K>80?"Sobrecomprado":"Zona neutra"});
+  osc.push({id:"cci",k:"CCI (20)",val:I.cci[i],vote:I.cci[i]<-100?1:I.cci[i]>100?-1:0,why:I.cci[i]<-100?"Muito abaixo da média":I.cci[i]>100?"Muito acima da média":"Perto da média"});
+  osc.push({id:"wr",k:"Williams %R (14)",val:I.wr[i],vote:I.wr[i]<-80?1:I.wr[i]>-20?-1:0,why:I.wr[i]<-80?"Sobrevendido":I.wr[i]>-20?"Sobrecomprado":"Zona neutra"});
+  if(!I.noVol)osc.push({id:"mfi",k:"MFI (14)",val:I.mfi[i],vote:I.mfi[i]<20?1:I.mfi[i]>80?-1:0,why:I.mfi[i]<20?"Sobrevendido com volume":I.mfi[i]>80?"Sobrecomprado com volume":"Zona neutra"});
+  osc.push({id:"bb",k:"Bandas de Bollinger (20, 2)",val:(c-I.bbL[i])/((I.bbU[i]-I.bbL[i])||1),vote:c<I.bbL[i]?1:c>I.bbU[i]?-1:0,why:c<I.bbL[i]?"Abaixo da banda inferior":c>I.bbU[i]?"Acima da banda superior":"Dentro das bandas"});
+  return{trend,osc};
+};
+const avg=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
+E.signalAt=function(I,i){
+  const{trend,osc}=E.votesAt(I,i);
+  const ts=avg(trend.map(x=>x.vote)),os=avg(osc.map(x=>x.vote));
+  let dir=Math.abs(ts)>=0.34?Math.sign(ts):0,st=Math.abs(ts);
+  if(dir&&os*dir<0)st-=Math.abs(os)*0.35; // osciladores no extremo contrário tiram força
+  if(dir&&I.adx[i]>25)st+=0.08;
+  st=Math.max(0,Math.min(1,st));
+  if(dir&&st<0.34)dir=0;
+  const strong=dir!==0&&st>=0.7;
+  const all=trend.concat(osc);
+  const counts={buy:all.filter(x=>x.vote>0).length,sell:all.filter(x=>x.vote<0).length,neutral:all.filter(x=>x.vote===0).length,total:all.length};
+  return{dir,strong,force:Math.round(st*100),st,ts,os,trend,osc,counts,code:dir>0?(strong?"COMPRA_FORTE":"COMPRA"):dir<0?(strong?"VENDA_FORTE":"VENDA"):"NEUTRO"};
+};
+
+// ---------- níveis do sinal (stop e alvos por ATR) ----------
+E.levels=function(sig,I){const i=I.c.length-1,e=I.c[i],atr=I.atr[i];
+  if(!sig.dir)return{dir:0,entry:e,atr};
+  const d=sig.dir,R=1.5*atr;return{dir:d,entry:e,atr,R,stop:e-d*R,tp1:e+d*1.5*R,tp2:e+d*2.5*R,tp3:e+d*3.5*R,rr:2.5}};
+
+// ---------- backtest da regra de sinais no próprio histórico ----------
+E.backtest=function(I,cs,H,start){H=H||24;start=start||210;const n=cs.length,trades=[];let prev=0;
+  for(let i=start;i<n-1;i++){const d=E.signalAt(I,i).dir;
+    if(d!==0&&d!==prev&&i+H<n){const e=I.c[i],R=1.5*I.atr[i],stop=e-d*R,tp=e+d*1.5*R;let res=null;
+      for(let j=i+1;j<=i+H;j++){const k=cs[j];const hitS=d>0?k.l<=stop:k.h>=stop,hitT=d>0?k.h>=tp:k.l<=tp;if(hitS){res=-1;break}if(hitT){res=1.5;break}}
+      if(res==null)res=(I.c[i+H]-e)*d/R;trades.push({i,d,res})}
+    prev=d}
+  let eq=0,peak=0,dd=0,gp=0,gl=0;trades.forEach(t=>{eq+=t.res;peak=Math.max(peak,eq);dd=Math.max(dd,peak-eq);if(t.res>0)gp+=t.res;else gl-=t.res});
+  const wins=trades.filter(t=>t.res>0).length;
+  return{trades:trades.length,wins,winRate:trades.length?wins/trades.length:0,exp:trades.length?eq/trades.length:0,totalR:eq,maxDD:dd,pf:gl?gp/gl:(gp?Infinity:0),horizon:H,list:trades};
+};
+
+// ---------- Monte Carlo (bootstrap dos retornos reais do ativo) ----------
+E.monteCarlo=function(I,H,lv,N,seed,perYear){N=N||10000;const c=I.c,n=c.length;const lr=[];for(let i=Math.max(1,n-200);i<n;i++)lr.push(Math.log(c[i]/c[i-1]));
+  const mu=avg(lr);for(let j=0;j<lr.length;j++)lr[j]=lr[j]-mu*0.75; // encolhe a tendência média: estimar drift com 200 candles é pouco confiável
+  const r=rng(seed);const p0=c[n-1];const ends=new Float64Array(N);let up=0,tp=0,sl=0;const use=lv&&lv.dir;
+  const lStop=use?Math.log(lv.stop/p0):0,lTp=use?Math.log(lv.tp1/p0):0;
+  for(let s=0;s<N;s++){let lp=0,done=!use;for(let t=0;t<H;t++){lp+=lr[(r()*lr.length)|0];if(!done){if(lv.dir>0?lp<=lStop:lp>=lStop){sl++;done=true}else if(lv.dir>0?lp>=lTp:lp<=lTp){tp++;done=true}}}ends[s]=p0*Math.exp(lp);if(ends[s]>p0)up++}
+  const sorted=Array.from(ends).sort((a,b)=>a-b);const q=p=>sorted[Math.min(N-1,Math.floor(p*N))];
+  const m=avg(lr),sd=Math.sqrt(avg(lr.map(x=>(x-m)**2)));
+  return{N,H,pUp:up/N,p5:q(0.05),p50:q(0.5),p95:q(0.95),pTp:use?tp/N:null,pStop:use?sl/N:null,pNone:use?(N-tp-sl)/N:null,volAnn:sd*Math.sqrt(perYear||252)};
+};
+
+// ---------- estrutura de mercado (Smart Money Concepts simplificado) ----------
+E.smc=function(cs,I,k){k=k||3;const n=cs.length,sw=[];
+  for(let i=k;i<n-k;i++){let isH=true,isL=true;for(let j=i-k;j<=i+k;j++){if(j===i)continue;if(cs[j].h>=cs[i].h)isH=false;if(cs[j].l<=cs[i].l)isL=false}if(isH)sw.push({i,p:cs[i].h,t:"H"});if(isL)sw.push({i,p:cs[i].l,t:"L"})}
+  let trend=0,lastH=null,lastL=null,si=0;const ev=[];
+  for(let i=0;i<n;i++){while(si<sw.length&&sw[si].i+k<=i){const s=sw[si];if(s.t==="H")lastH={p:s.p,i:s.i,broken:false};else lastL={p:s.p,i:s.i,broken:false};si++}
+    const c=cs[i].c;
+    if(lastH&&!lastH.broken&&c>lastH.p){lastH.broken=true;ev.push({i,type:trend<0?"CHoCH":"BOS",dir:1,p:lastH.p});trend=1}
+    if(lastL&&!lastL.broken&&c<lastL.p){lastL.broken=true;ev.push({i,type:trend>0?"CHoCH":"BOS",dir:-1,p:lastL.p});trend=-1}}
+  const highs=sw.filter(s=>s.t==="H"),lows=sw.filter(s=>s.t==="L");
+  let structure=0,pattern="Sem topos e fundos suficientes";
+  if(highs.length>=2&&lows.length>=2){const[h1,h2]=highs.slice(-2),[l1,l2]=lows.slice(-2);const hh=h2.p>h1.p,hl_=l2.p>l1.p;
+    if(hh&&hl_){structure=1;pattern="Topos e fundos ascendentes"}else if(!hh&&!hl_){structure=-1;pattern="Topos e fundos descendentes"}else pattern=hh?"Topo mais alto, mas fundo mais baixo":"Fundo mais alto, mas topo mais baixo"}
+  // FVG: lacuna entre a máxima do candle i-2 e a mínima do candle i (ou o inverso) ainda não preenchida
+  const fvg=[];const from=Math.max(2,n-150);
+  for(let i=from;i<n;i++){
+    if(cs[i].l>cs[i-2].h){const lo=cs[i-2].h,hi=cs[i].l;let filled=false;for(let j=i+1;j<n;j++)if(cs[j].l<=lo){filled=true;break}if(!filled)fvg.push({i,dir:1,lo,hi})}
+    if(cs[i].h<cs[i-2].l){const lo=cs[i].h,hi=cs[i-2].l;let filled=false;for(let j=i+1;j<n;j++)if(cs[j].h>=hi){filled=true;break}if(!filled)fvg.push({i,dir:-1,lo,hi})}}
+  const price=cs[n-1].c,atr=I.atr[n-1];
+  const dedupe=(arr)=>{const o=[];arr.forEach(p=>{if(!o.some(x=>Math.abs(x-p)<0.3*atr))o.push(p)});return o};
+  const recent=sw.filter(s=>s.i>=n-300);
+  const res=dedupe(recent.filter(s=>s.t==="H"&&s.p>price).map(s=>s.p).sort((a,b)=>a-b)).slice(0,2);
+  const sup=dedupe(recent.filter(s=>s.t==="L"&&s.p<price).map(s=>s.p).sort((a,b)=>b-a)).slice(0,2);
+  fvg.sort((a,b)=>Math.abs((a.lo+a.hi)/2-price)-Math.abs((b.lo+b.hi)/2-price));
+  return{swings:sw,events:ev,last:ev[ev.length-1]||null,recentEvents:ev.filter(e=>e.i>=n-100).length,structure,pattern,fvg,sup,res};
+};
+
+// ---------- Teoria de Dow ----------
+E.dow=function(I,cs){const n=I.c.length,i=n-1,c=I.c[i];
+  const ok=p=>I.sma[p][i]!=null&&I.sma[p][i-20]!=null;const primN=ok(200)?200:ok(100)?100:50;
+  const s200=I.sma[primN],s50=I.sma[50],s10=I.sma[10];
+  const prim=c>s200[i]&&s200[i]>s200[i-20]?1:c<s200[i]&&s200[i]<s200[i-20]?-1:0;
+  const sec=c>s50[i]&&s50[i]>s50[i-10]?1:c<s50[i]&&s50[i]<s50[i-10]?-1:0;
+  const min=s10[i]>s10[i-3]?1:s10[i]<s10[i-3]?-1:0;
+  let upV=0,upN=0,dnV=0,dnN=0;for(let j=n-40;j<n;j++){if(cs[j].c>=cs[j].o){upV+=cs[j].v;upN++}else{dnV+=cs[j].v;dnN++}}
+  const ua=upN?upV/upN:0,da=dnN?dnV/dnN:0;
+  const volConfirms=(prim===0||I.noVol)?null:(prim>0?ua>da:da>ua);
+  return{primN,prim,sec,min,volConfirms,upAvg:ua,dnAvg:da};
+};
+
+// ---------- Fibonacci ----------
+E.fib=function(cs,look){const n=cs.length;look=Math.min(look||150,n);let hi=-Infinity,lo=Infinity,hiI=0,loI=0;
+  for(let i=n-look;i<n;i++){if(cs[i].h>hi){hi=cs[i].h;hiI=i}if(cs[i].l<lo){lo=cs[i].l;loI=i}}
+  const upMove=hiI>loI;const R=[0,0.236,0.382,0.5,0.618,0.786,1];
+  return{hi,lo,upMove,levels:R.map(r=>({r,p:upMove?hi-(hi-lo)*r:lo+(hi-lo)*r}))};
+};
+
+G.RadarEngine=E;
+})(typeof window!=="undefined"?window:globalThis);
+
+</script>
+<script>
+(function(){
+"use strict";
+const E=window.RadarEngine;const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const nf=(v,d)=>Number(v).toLocaleString("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct=(v,d)=>nf(v*100,d==null?1:d)+"%";
+const sgn=d=>d>0?"up":d<0?"down":"flat";
+
+const ASSETS=[
+ {tk:"BTC",name:"Bitcoin",cls:"Cripto",cur:"US$",ref:80589.87,vol:.03,drift:-.0004,dec:2,hours:"CRIPTO",cg:"bitcoin"},
+ {tk:"ETH",name:"Ethereum",cls:"Cripto",cur:"US$",ref:2810.45,vol:.04,drift:.0006,dec:2,hours:"CRIPTO",cg:"ethereum"},
+ {tk:"SOL",name:"Solana",cls:"Cripto",cur:"US$",ref:142.37,vol:.05,drift:.0008,dec:2,hours:"CRIPTO",cg:"solana"},
+ {tk:"XRP",name:"XRP",cls:"Cripto",cur:"US$",ref:2.41,vol:.045,drift:.0003,dec:4,hours:"CRIPTO",cg:"ripple"},
+ {tk:"BNB",name:"BNB",cls:"Cripto",cur:"US$",ref:612.3,vol:.03,drift:.0002,dec:2,hours:"CRIPTO",cg:"binancecoin"},
+ {tk:"PETR4",name:"Petrobras PN",cls:"Ações",cur:"R$",ref:37.18,vol:.019,drift:.0005,dec:2,hours:"B3"},
+ {tk:"VALE3",name:"Vale ON",cls:"Ações",cur:"R$",ref:61.92,vol:.018,drift:-.0006,dec:2,hours:"B3"},
+ {tk:"ITUB4",name:"Itaú Unibanco PN",cls:"Ações",cur:"R$",ref:35.40,vol:.013,drift:.0003,dec:2,hours:"B3"},
+ {tk:"USD/BRL",name:"Dólar comercial",cls:"Câmbio",cur:"R$",ref:5.3872,vol:.008,drift:-.0002,dec:4,hours:"FX"},
+ {tk:"EUR/USD",name:"Euro x Dólar",cls:"Câmbio",cur:"",ref:1.0861,vol:.005,drift:.0001,dec:4,hours:"FX"},
+ {tk:"IBOV",name:"Ibovespa",cls:"Índices",cur:"",unit:" pts",ref:131450,vol:.011,drift:.0004,dec:0,hours:"B3"},
+ {tk:"S&P 500",name:"S&P 500",cls:"Índices",cur:"",unit:" pts",ref:6012.4,vol:.009,drift:.0005,dec:1,hours:"NY"},
+ {tk:"OURO",name:"Ouro (onça troy)",cls:"Commodities",cur:"US$",ref:2741.5,vol:.01,drift:.0007,dec:2,hours:"COMM"},
+ {tk:"BRENT",name:"Petróleo Brent (barril)",cls:"Commodities",cur:"US$",ref:72.84,vol:.02,drift:-.0005,dec:2,hours:"COMM"}
+];
+const TFS=["15m","1h","4h","1D"];
+// BTC e OURO: candles reais de 2, 5, 10 e 15 minutos gravados pela agência Pregão Virtual no banco desta página
+const DESK_TFS=["2m","5m","10m","15m"];
+let deskDoc=null;
+const deskOf=a=>deskDoc&&deskDoc.assets&&deskDoc.assets[a.tk]&&deskDoc.assets[a.tk].tfs&&Object.keys(deskDoc.assets[a.tk].tfs).length?deskDoc.assets[a.tk]:null;
+const RANGES=[{d:"1",label:"24h",long:"24 horas"},{d:"7",label:"7d",long:"7 dias"},{d:"30",label:"30d",long:"30 dias"},{d:"365",label:"1 ano",long:"1 ano"}];
+const RMAP={"1":"15m","7":"1h","30":"4h","365":"1D"};
+const HZ={"2m":{n:30,label:"1 hora"},"5m":{n:24,label:"2 horas"},"10m":{n:24,label:"4 horas"},"15m":{n:32,label:"8 horas"},"1h":{n:24,label:"24 horas"},"4h":{n:30,label:"5 dias"},"1D":{n:20,label:"20 dias"}};
+const HOURS={
+ CRIPTO:{note:"Mercado aberto 24 horas, 7 dias por semana. A volatilidade sobe no horário comercial dos EUA e cai no fim de semana.",
+  good:[[13.5,16,"Abertura de Wall Street: liquidez e volatilidade altas"],[7,10,"Abertura da Europa: bom volume"],[0,3,"Sessão asiática: movimentos mais técnicos"]],
+  bad:[[5,7,"Transição Ásia–Europa: pouca liquidez"],[21,23,"Fechamento de Nova York: volume baixo e mais rompimentos falsos"]]},
+ B3:{note:"Pregão regular da B3 das 10h às 17h (Brasília).",
+  good:[[13,14.5,"Primeira hora e meia do pregão: maior volume"],[19,20,"Última hora: fluxo de fechamento e ajustes"]],
+  bad:[[12.75,13,"Leilão de abertura: preço ainda se formando"],[15.5,17.5,"Meio do pregão: volume menor"]]},
+ FX:{note:"Câmbio negocia 24 horas nos dias úteis. O dólar contra o real tem mais liquidez durante o pregão brasileiro.",
+  good:[[12,16,"Sobreposição Londres–Nova York: maior liquidez do dia"],[7,9,"Abertura de Londres"]],
+  bad:[[21,22,"Virada do dia (rolagem): spreads mais largos"],[2,6,"Madrugada na Ásia: pouco volume"]]},
+ NY:{note:"Pregão de Nova York das 9h30 às 16h no horário local.",
+  good:[[13.5,15,"Abertura de Nova York: maior volume do dia"],[19,20,"Última hora do pregão"]],
+  bad:[[16.5,18.5,"Meio do dia: volume menor"],[20,23,"Pós-mercado: pouca liquidez"]]},
+ COMM:{note:"Ouro e petróleo seguem as sessões de Londres e Nova York.",
+  good:[[12,16,"Sobreposição Londres–Nova York"],[7,9,"Abertura de Londres"]],
+  bad:[[21,23,"Depois do fechamento de Nova York: pouca liquidez"],[0,2,"Sessão asiática: volume baixo"]]}
+};
+
+const PC=(a,v)=>(a.cur?a.cur+" ":"")+nf(v,a.dec)+(a.unit||"");
+const P=(a,v)=>nf(v,a.dec);
+function perYear(a,tf){const mpd=(a.cls==="Cripto"||a.cls==="Câmbio")?1440:420;const days=a.cls==="Cripto"?365:252;return tf==="1D"?days:days*mpd/E.TF[tf].min}
+
+// ---------- estado ----------
+const state={tk:"BTC",tf:"15m",rng:"7",mode:"sinal",dtf:"2m"};
+try{const s=JSON.parse(localStorage.getItem("radar_state")||"null");if(s&&ASSETS.some(a=>a.tk===s.tk))state.tk=s.tk;if(s&&TFS.includes(s.tf))state.tf=s.tf;if(s&&(s.mode==="sinal"||s.mode==="niveis"))state.mode=s.mode;if(s&&RANGES.some(x=>x.d===s.rng))state.rng=s.rng;if(s&&DESK_TFS.includes(s.dtf))state.dtf=s.dtf}catch(e){}
+function saveState(){try{localStorage.setItem("radar_state",JSON.stringify(state))}catch(e){}}
+let history=[];try{history=JSON.parse(localStorage.getItem("radar_hist")||"[]")||[]}catch(e){history=[]}
+function saveHist(){try{localStorage.setItem("radar_hist",JSON.stringify(history))}catch(e){}}
+
+const cache={};
+const asset=()=>ASSETS.find(a=>a.tk===state.tk);
+function series(a,tf){const k=a.tk+"|"+tf;if(!cache[k])cache[k]=E.newSeries(a,tf,600);return cache[k]}
+
+// ---------- fonte de dados: CoinGecko (cripto) ou simulação ----------
+let mcp=null,mcpState=(window.claude&&window.claude.use)?"pending":"none",reqTok=0;
+const realData={},realErr={};
+const AUTHZ=["needs_reauth","server_not_connected","selection_required","not_in_manifest","blocked_by_policy","approval_required","consent_required","not_granted","capability_disabled","capability_removed"];
+function fmtDur(min){if(min<60)return Math.round(min)+" min";if(min<1440){const h=Math.floor(min/60),m=Math.round(min-h*60);return h+"h"+(m?String(m).padStart(2,"0"):"")}return nf(min/1440,min<14400?1:0)+" dias"}
+function fmtHorizon(min){if(min<=90)return Math.round(min)+" minutos";if(min<=2880)return Math.round(min/60)+" horas";return Math.round(min/1440)+" dias"}
+const usesReal=a=>!!a.cg&&mcpState!=="none";
+async function fetchReal(a,days,force){
+  const key=a.cg+"|"+days;
+  const call=()=>mcp.callTool("CoinGecko","get-coin-market-chart",{id:a.cg,days},{cache:force?{staleTime:60000,gcTime:600000,refresh:true}:{staleTime:60000,gcTime:600000}});
+  try{
+    let res;try{res=await call()}catch(e){if(e&&e.retryable){await new Promise(ok=>setTimeout(ok,Math.min(e.retryAfterMs||(1200+Math.random()*1500),8000)));res=await call()}else throw e}
+    const pl=res.payload;
+    if(!pl||!Array.isArray(pl.prices)||pl.prices.length<60||!pl.startTs||!pl.endTs||pl.prices.some(x=>typeof x!=="number"||!(x>0)))throw{code:"bad_data",message:"A resposta não trouxe uma série de preços completa."};
+    realData[key]={prices:pl.prices,startTs:pl.startTs,endTs:pl.endTs,storedAt:res.cache&&res.cache.storedAt?res.cache.storedAt:Date.now()};delete realErr[key];
+  }catch(e){
+    const code=e&&e.code||"upstream_error";realErr[key]={code,message:e&&e.message?String(e.message).slice(0,160):""};
+    if(AUTHZ.includes(code))delete realData[key];
+  }
+}
+function errText(err,kept){
+  const tail=kept?" Mostrando a última cotação obtida.":" Mostrando dados simulados.";
+  switch(err.code){
+    case"server_not_connected":case"selection_required":return"O CoinGecko não está conectado na sua conta. Adicione em Configurações → Conectores do claude.ai para ver cotações reais."+tail;
+    case"needs_reauth":return"A conexão com o CoinGecko expirou. Reconecte em Configurações → Conectores do claude.ai."+tail;
+    case"approval_required":case"not_in_manifest":case"consent_required":return"Esta página ainda não tem permissão para usar o CoinGecko."+tail;
+    case"blocked_by_policy":return"O uso do CoinGecko está bloqueado pela política da sua organização."+tail;
+    case"not_granted":case"capability_disabled":case"capability_removed":return"Esta visualização não permite usar conectores."+tail;
+    case"tool_error":case"bad_data":return"O CoinGecko devolveu um erro"+(err.message?": "+err.message:".")+tail;
+    default:return"O CoinGecko não respondeu agora. Toque em Nova análise para tentar de novo."+tail;
+  }
+}
+function srcFor(a){
+  const dk=deskOf(a);
+  if(dk&&dk.tfs[state.dtf]){const rows=dk.tfs[state.dtf],min=E.TF[state.dtf].min;
+    const cs=rows.map(r=>({t:r[0],o:r[1],h:r[2],l:r[3],c:r[4],v:r[5]||0}));
+    return{real:true,desk:true,cs,intervalMin:min,tfLabel:state.dtf,tfDesc:`${state.dtf} · candles reais da mesa`,storedAt:deskDoc.updatedAt}}
+  const sim=()=>{const tf=a.cg&&usesReal(a)?RMAP[state.rng]:state.tf;const s=series(a,tf);return{real:false,cs:s.candles,intervalMin:E.TF[tf].min,tfLabel:tf,tfDesc:tf,series:s}};
+  if(a.cg&&mcpState==="ready"){
+    const key=a.cg+"|"+state.rng,d=realData[key],err=realErr[key];
+    if(d){const n=d.prices.length,dt=(d.endTs-d.startTs)/(n-1);
+      const cs=d.prices.map((c,i)=>{const o=i?d.prices[i-1]:c;return{o,c,h:Math.max(o,c),l:Math.min(o,c),v:1,t:d.startTs+i*dt}});
+      const rg=RANGES.find(x=>x.d===state.rng);
+      return{real:true,cs,intervalMin:dt/60000,tfLabel:rg.label,tfDesc:`${rg.long}, um ponto a cada ${fmtDur(dt/60000)}`,storedAt:d.storedAt,err}}
+    return Object.assign(sim(),{err});
+  }
+  return sim();
+}
+
+const W=(m,d)=>m==="sinal"?(d>0?"Compra":d<0?"Venda":"Neutro"):(d>0?"Alta":d<0?"Baixa":"Neutro");
+const trendWord=d=>d>0?"de alta":d<0?"de baixa":"lateral";
+function sigLabel(sig,m){if(m==="sinal")return sig.code.replace("_"," ");return sig.dir>0?(sig.strong?"Viés de alta forte":"Viés de alta"):sig.dir<0?(sig.strong?"Viés de baixa forte":"Viés de baixa"):"Sem viés definido"}
+const chip=(d,m)=>`<span class="chip ${sgn(d)}">${W(m,d)}</span>`;
+
+// ---------- análise ----------
+function analyze(){
+  const a=asset(),src=srcFor(a),cs=src.cs,I=E.indicators(cs,{noVol:src.real&&!src.desk}),i=cs.length-1,long=cs.length>=400;
+  const sig=E.signalAt(I,i),lv=E.levels(sig,I),smc=E.smc(cs,I,3),dow=E.dow(I,cs),fib=E.fib(cs,150);
+  const H=src.real&&!src.desk?{n:20,label:fmtHorizon(20*src.intervalMin)}:HZ[src.tfLabel];
+  const py=src.real?365*1440/src.intervalMin:perYear(a,src.tfLabel);
+  const mc=E.monteCarlo(I,H.n,lv,10000,E.hash(a.tk+src.tfLabel)+cs[i].t%100000,py);
+  const bt=E.backtest(I,cs,long?24:12,long?210:60);
+  const conf=confluence(sig,smc,dow,mc,bt,H);
+  const scen=scenarios(a,lv,smc);
+  return{a,src,cs,I,i,sig,lv,smc,dow,fib,mc,bt,conf,scen,H,tfLabel:src.tfLabel,at:Date.now()};
+}
+function confluence(sig,smc,dow,mc,bt,H){
+  const tB=sig.trend.filter(x=>x.vote>0).length,tS=sig.trend.filter(x=>x.vote<0).length;
+  const tdir=Math.abs(sig.ts)>=0.34?Math.sign(sig.ts):0;
+  const odir=sig.os>=0.3?1:sig.os<=-0.3?-1:0;
+  const mdir=mc.pUp>=0.55?1:mc.pUp<=0.45?-1:0;
+  const methods=[
+    {k:"Indicadores de tendência",dir:tdir,detail:`${tB} apontam alta e ${tS} apontam baixa, de ${sig.trend.length}`},
+    {k:"Osciladores",dir:odir,detail:odir>0?"Sobrevenda, o que favorece um repique":odir<0?"Sobrecompra, o que favorece uma correção":"Sem extremos"},
+    {k:"Estrutura de mercado",dir:smc.structure,detail:smc.pattern},
+    {k:"Teoria de Dow",dir:dow.prim,detail:"Tendência primária "+trendWord(dow.prim)},
+    {k:"Monte Carlo",dir:mdir,detail:`${pct(mc.pUp)} de chance de fechar acima em ${H.label}`}];
+  let agree=0,oppose=0;const warnings=[];
+  if(sig.dir){
+    methods.forEach(x=>{if(x.dir===sig.dir)agree++;else if(x.dir===-sig.dir){oppose++;warnings.push(`${x.k} contra o sinal (${x.detail.charAt(0).toLowerCase()+x.detail.slice(1)}).`)}});
+    if(mdir===0)warnings.push(`O Monte Carlo dá chances parecidas de alta (${pct(mc.pUp)}) e de baixa (${pct(1-mc.pUp)}). Pelo comportamento recente, o preço futuro está perto de um cara ou coroa.`);
+  }
+  let level=-1;
+  if(sig.dir){level=agree>=4&&oppose===0?2:agree>=3&&oppose<=1?1:0;
+    if(bt.trades>=8&&bt.exp<=0){warnings.push(`No histórico deste ativo neste tempo gráfico, a regra de sinais não teve vantagem: ${nf(bt.exp,2)} R por operação em ${bt.trades} sinais.`);if(level>0)level--}}
+  return{methods,agree,oppose,level,label:level<0?"—":["Baixa","Média","Alta"][level],warnings};
+}
+function scenarios(a,lv,smc){
+  const e=lv.entry,atr=lv.atr;
+  const upTrig=smc.res[0]!=null?smc.res[0]:e+0.5*atr;
+  let upT1=smc.res[1]!=null&&smc.res[1]>upTrig+0.5*atr?smc.res[1]:upTrig+1.5*atr;const upT2=Math.max(upT1+atr,upTrig+3*atr);
+  const upInv=smc.sup[0]!=null?smc.sup[0]:e-1*atr;
+  const dnTrig=smc.sup[0]!=null?smc.sup[0]:e-0.5*atr;
+  let dnT1=smc.sup[1]!=null&&smc.sup[1]<dnTrig-0.5*atr?smc.sup[1]:dnTrig-1.5*atr;const dnT2=Math.min(dnT1-atr,dnTrig-3*atr);
+  const dnInv=smc.res[0]!=null?smc.res[0]:e+1*atr;
+  return{up:{trig:upTrig,t1:upT1,t2:upT2,inv:upInv,fromSwing:smc.res[0]!=null},dn:{trig:dnTrig,t1:dnT1,t2:dnT2,inv:dnInv,fromSwing:smc.sup[0]!=null}};
+}
+
+// ---------- render ----------
+let R=null,sample=null,aiCtl=null;
+
+function renderControls(){
+  const sel=$("asset");if(!sel.options.length){const groups={};ASSETS.forEach(a=>{(groups[a.cls]=groups[a.cls]||[]).push(a)});Object.keys(groups).forEach(g=>{const og=document.createElement("optgroup");og.label=g;groups[g].forEach(a=>{const o=document.createElement("option");o.value=a.tk;o.textContent=a.tk+" · "+a.name;og.appendChild(o)});sel.appendChild(og)})}
+  sel.value=state.tk;
+  const tf=$("tfSeg"),desk=!!deskOf(asset()),real=!desk&&usesReal(asset()),want=desk?"d":real?"r":"t";
+  if(tf.dataset.kind!==want){tf.dataset.kind=want;tf.innerHTML="";(desk?DESK_TFS.map(t=>({v:t,l:t,k:"d"})):real?RANGES.map(x=>({v:x.d,l:x.label,k:"r"})):TFS.map(t=>({v:t,l:t,k:"tf"}))).forEach(o=>{const b=document.createElement("button");b.type="button";b.dataset[o.k]=o.v;b.textContent=o.l;tf.appendChild(b)});tf.setAttribute("aria-label",real?"Período":"Tempo gráfico")}
+  tf.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",desk?b.dataset.d===state.dtf:real?b.dataset.r===state.rng:b.dataset.tf===state.tf));
+  $("modeSeg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===state.mode));
+}
+
+function lvBox(cls,label,a,v,e){const d=(v-e)/e;return `<div class="lv ${cls}"><b>${P(a,v)}</b><span>${label}${e!==v?` · <span class="mono">${d>0?"+":""}${pct(d,2)}</span>`:""}</span></div>`}
+
+function renderHero(){
+  const{a,sig,lv,conf,scen}=R,m=state.mode,c=sig.counts,when=new Date(R.at);
+  const tot=c.total||1;
+  let h=`<div class="hero-top"><div><div class="tk">${esc(a.tk)}</div><div class="meta">${esc(a.name)} · ${esc(a.cls)} · ${esc(R.src.tfDesc)} · analisado em ${when.toLocaleDateString("pt-BR")} às ${when.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div><div class="meta">${R.src.desk?`Fonte: agência Pregão Virtual (Binance e futuros CME) · ${R.cs.length} candles · atualizado às ${new Date(R.src.storedAt).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`:R.src.real?`Fonte: CoinGecko · ${R.cs.length} preços de fechamento · cotação de ${new Date(R.src.storedAt).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`:"Fonte: simulação"}</div></div><span class="sig ${sgn(sig.dir)}">${esc(sigLabel(sig,m))}</span></div>`;
+  h+=`<div class="force"><div><div class="big ${sgn(sig.dir)}">${sig.force}%</div><small>Força do sinal</small></div>
+   <div class="meter"><div class="row" style="justify-content:space-between;font-size:13.5px"><span>Confiança: <b>${conf.label}</b>${sig.dir?` <span class="note">(${conf.agree} de ${conf.methods.length} métodos a favor)</span>`:""}</span><span class="mono">${esc(PC(a,lv.entry))}</span></div>
+   <div class="bar" aria-hidden="true"><i style="width:${c.buy/tot*100}%;background:var(--up)"></i><i style="width:${c.neutral/tot*100}%;background:var(--line)"></i><i style="width:${c.sell/tot*100}%;background:var(--down)"></i></div>
+   <div class="note">${c.buy} indicadores de ${m==="sinal"?"compra":"alta"} · ${c.neutral} ${c.neutral===1?"neutro":"neutros"} · ${c.sell} de ${m==="sinal"?"venda":"baixa"}</div></div></div>`;
+  if(m==="sinal"){
+    if(sig.dir){h+=`<div class="levels">${lvBox("entry","Entrada",a,lv.entry,lv.entry)}${lvBox("stop","Stop loss",a,lv.stop,lv.entry)}<div class="lv"><b>1 : ${nf(lv.rr,1)}</b><span>Risco/retorno no alvo 2</span></div>${lvBox("tp","Alvo 1",a,lv.tp1,lv.entry)}${lvBox("tp","Alvo 2",a,lv.tp2,lv.entry)}${lvBox("tp","Alvo 3",a,lv.tp3,lv.entry)}</div>
+      <p class="note">Stop a 1,5 ATR da entrada. Alvos a 1,5, 2,5 e 3,5 vezes o risco.</p>`}
+    else h+=`<div class="warnbox"><strong>Sem entrada agora</strong><span>Os indicadores de tendência não têm maioria clara para um lado. O sistema só gera sinal quando a diferença entre alta e baixa passa de um terço dos votos.</span></div>`;
+  }else{
+    const sc=(k,s,d)=>`<div class="sc ${d>0?"up":"down"}"><div class="row" style="justify-content:space-between"><h3>${d>0?"Se subir":"Se cair"}</h3>${sig.dir===d?'<span class="chip '+(d>0?"up":"down")+'">Favorecido</span>':""}</div><dl>
+      <dt>Gatilho</dt><dd>${d>0?"acima de":"abaixo de"} ${P(a,s.trig)}</dd><dt>Alvo 1</dt><dd>${P(a,s.t1)}</dd><dt>Alvo 2</dt><dd>${P(a,s.t2)}</dd><dt>Invalida ${d>0?"abaixo de":"acima de"}</dt><dd>${P(a,s.inv)}</dd></dl></div>`;
+    h+=`<div class="scen">${sc("up",scen.up,1)}${sc("dn",scen.dn,-1)}</div><p class="note">Gatilhos e invalidações vêm dos topos e fundos recentes; os alvos usam a próxima referência ou múltiplos do ATR.</p>`;
+  }
+  if(conf.warnings.length)h+=`<div class="warnbox"><strong>${conf.warnings.length===1?"Ponto de atenção":"Pontos de atenção"}</strong>${conf.warnings.map(w=>`<span>${esc(w)}</span>`).join("")}</div>`;
+  h+=`<p class="legal">${m==="sinal"?"Sinal gerado por algoritmo a partir de dados históricos. Não é recomendação personalizada de investimento.":"Leitura educacional de níveis técnicos. Não indica compra nem venda."}</p>`;
+  if(R.src.err){const e=R.src.err,ask=["approval_required","not_in_manifest","consent_required"].includes(e.code);h=`<div class="warnbox"><strong>Cotação real indisponível</strong><span>${esc(errText(e,R.src.real))}</span>${ask?'<button class="btn" type="button" data-act="retry" style="align-self:flex-start;margin-top:4px">Permitir acesso ao CoinGecko</button>':""}</div>`+h}
+  $("hero").innerHTML=h;
+  const tag=$("srcTag");tag.textContent=R.src.desk?"Dados reais · mesa Pregão Virtual":R.src.real?"Dados reais · CoinGecko":"Dados simulados";tag.classList.toggle("live",!!R.src.real);
+}
+
+function renderChart(){
+  const{a,cs,I,lv,smc,sig}=R,m=state.mode,n=90,st=cs.length-n,Wd=640,Ht=270,pl=6,pr=78,pt=12,pb=22;
+  const seg=cs.slice(st);
+  const lines=[];
+  if(m==="sinal"&&sig.dir){lines.push({v:lv.entry,c:"var(--accent)",t:"Entrada"},{v:lv.stop,c:"var(--down)",t:"Stop"},{v:lv.tp1,c:"var(--up)",t:"Alvo 1"},{v:lv.tp2,c:"var(--up)",t:"Alvo 2"},{v:lv.tp3,c:"var(--up)",t:"Alvo 3"})}
+  else{smc.res.forEach((v,k)=>lines.push({v,c:"var(--down)",t:"R"+(k+1)}));smc.sup.forEach((v,k)=>lines.push({v,c:"var(--up)",t:"S"+(k+1)}))}
+  const dk=R.src.desk?deskOf(a):null;
+  if(dk&&m!=="sinal"){const lo0=Math.min(...seg.map(k=>k.l)),hi0=Math.max(...seg.map(k=>k.h)),sp=hi0-lo0;
+    dk.liquidity.above.filter(v=>v<=hi0+sp*.3).slice(0,2).forEach(v=>lines.push({v,c:"var(--warn)",t:"L"}));
+    dk.liquidity.below.filter(v=>v>=lo0-sp*.3).slice(0,2).forEach(v=>lines.push({v,c:"var(--warn)",t:"L"}))}
+  let lo=Math.min(...seg.map(k=>k.l),...lines.map(x=>x.v)),hi=Math.max(...seg.map(k=>k.h),...lines.map(x=>x.v));const pad=(hi-lo)*.05;lo-=pad;hi+=pad;
+  const cw=(Wd-pl-pr)/n,X=j=>pl+cw*(j+.5),Y=v=>pt+(hi-v)*(Ht-pt-pb)/(hi-lo);
+  let g="";
+  for(let k=0;k<=4;k++){const y=pt+(Ht-pt-pb)*k/4;g+=`<line x1="${pl}" x2="${Wd-pr}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/>`}
+  const tfm=R.src.intervalMin;const tl=t=>{const d=new Date(t);return tfm>=1440?d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):tfm>=60?d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit"})+"h":d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})};
+  [10,40,70].forEach(j=>{g+=`<text x="${X(j)}" y="${Ht-6}" text-anchor="middle">${esc(tl(seg[j].t))}</text>`});
+  // bandas e médias
+  const idx=[...Array(n).keys()];
+  const bi=idx.filter(j=>I.bbU[st+j]!=null);
+  if(bi.length>1){const band="M"+bi.map(j=>X(j).toFixed(1)+" "+Y(I.bbU[st+j]).toFixed(1)).join("L")+"L"+bi.slice().reverse().map(j=>X(j).toFixed(1)+" "+Y(I.bbL[st+j]).toFixed(1)).join("L")+"Z";g+=`<path d="${band}" fill="var(--band)" stroke="none"/>`}
+  const line=arr=>{let d="",on=false;idx.forEach(j=>{const v=arr[st+j];if(v==null){on=false;return}d+=(on?"L":"M")+X(j).toFixed(1)+" "+Y(v).toFixed(1);on=true});return d||"M0 0"};
+  g+=`<path d="${line(I.sma[50])}" fill="none" stroke="var(--sma50)" stroke-width="1.4"/><path d="${line(I.sma[20])}" fill="none" stroke="var(--sma20)" stroke-width="1.4"/>`;
+  seg.forEach((k,j)=>{const up=k.c>=k.o,col=up?"var(--candle-up)":"var(--candle-down)",x=X(j),y1=Y(Math.max(k.o,k.c)),y2=Y(Math.min(k.o,k.c));
+    g+=`<line x1="${x}" x2="${x}" y1="${Y(k.h)}" y2="${Y(k.l)}" stroke="${col}" stroke-width="1"/><rect x="${(x-cw*.35).toFixed(1)}" y="${y1.toFixed(1)}" width="${(cw*.7).toFixed(1)}" height="${Math.max(1,y2-y1).toFixed(1)}" fill="${col}"/>`});
+  // linhas de nível e rótulos sem sobreposição
+  const labs=lines.map(x=>({...x,y:Y(x.v)})).sort((p,q)=>p.y-q.y);
+  labs.forEach((x,k)=>{x.ly=k===0?x.y:Math.max(x.y,labs[k-1].ly+12)});
+  labs.forEach((x,k)=>{g+=`<line x1="${pl}" x2="${Wd-pr}" y1="${x.y}" y2="${x.y}" stroke="${x.c}" stroke-dasharray="4 3" stroke-width="1.2"/><text x="${Wd-pr+5}" y="${x.ly+3}" style="fill:${x.c}">${esc(x.t)} ${esc(P(a,x.v))}</text>`});
+  const lc=seg[n-1].c,ly=Y(lc);
+  if(!(m==="sinal"&&sig.dir))g+=`<rect x="${Wd-pr+2}" y="${ly-8}" width="${pr-4}" height="16" rx="3" fill="var(--ink)"/><text x="${Wd-pr+6}" y="${ly+3.5}" style="fill:var(--bg)">${esc(P(a,lc))}</text>`;
+  $("chart").innerHTML=`<svg viewBox="0 0 ${Wd} ${Ht}" width="100%" role="img" aria-label="Gráfico de candles de ${esc(a.tk)} com médias e níveis">${g}</svg>`;
+  $("legend").innerHTML=`<span><i style="background:var(--sma20)"></i>Média 20</span><span><i style="background:var(--sma50)"></i>Média 50</span><span><i style="background:var(--band);height:8px"></i>Bollinger</span><span class="note">Últimos ${n} ${R.src.real&&!R.src.desk?"pontos":"candles"}</span>${dk&&m!=="sinal"?'<span><i style="background:var(--warn)"></i>L = liquidez de 15m (mesa)</span>':""}`;
+}
+
+// o que a mesa Pregão Virtual consulta antes de cada ordem: liquidez de 15m, POIs e a leitura dos 4 tempos
+function renderDesk(){
+  const box=$("desk"),a=R.a,dk=R.src.desk?deskOf(a):null;
+  if(!dk){box.hidden=true;box.innerHTML="";return}
+  box.hidden=false;const d=dk.dec==null?a.dec:dk.dec,f=v=>nf(v,d);
+  const rd=Object.keys(dk.reading||{}).map(k=>{const r=dk.reading[k];return `<tr><td>${esc(k)}<span class="why">${esc(r.word)}</span></td><td class="c">${r.radar?`<span class="chip ${sgn(r.radar.dir)}">${esc(r.radar.code)} ${r.radar.force}%</span>`:"—"}</td></tr>`}).join("");
+  const pois=(dk.pois||[]).slice(-4).reverse().map(p=>`<tr><td>${p.dir>0?"Compra":"Venda"} · POI ${esc(p.trigger)} · ${new Date(p.entryT).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}<span class="why">entrada ${f(p.entry)} · stop ${f(p.stop)} · alvo ${f(p.take)}${p.aligned?" · a mesa operou":" · fora do macro 1h"}</span></td><td class="c"><span class="chip ${p.result==="alvo"?"up":p.result==="stop"?"down":""}">${esc(p.result||"—")}</span></td></tr>`).join("");
+  box.innerHTML=`<div class="card-h"><h2>Consulta da mesa Pregão Virtual</h2><span class="note">atualizado ${new Date(deskDoc.updatedAt).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}${deskDoc.nextAt?" · próxima ~"+new Date(deskDoc.nextAt).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):""}</span></div>
+   <p class="note">Os agentes da mesa leem esta página antes de cada ordem: o sinal do Radar em 2, 5, 10 e 15 minutos, a liquidez de 15 minutos e o POI. A leitura fica registrada junto da operação na agência.</p>
+   <div class="grid2"><div><p class="eyebrow">Leitura por tempo (estrutura e sinal do Radar)</p><table class="tbl"><tbody>${rd}</tbody></table></div>
+   <div><p class="eyebrow">Liquidez de 15m ainda não varrida</p><dl class="kv"><dt>Acima</dt><dd>${dk.liquidity.above.length?dk.liquidity.above.map(f).join(" · "):"—"}</dd><dt>Abaixo</dt><dd>${dk.liquidity.below.length?dk.liquidity.below.map(f).join(" · "):"—"}</dd><dt>Varridas em 24h</dt><dd>${dk.liquidity.swept.length}</dd></dl>
+   ${pois?`<p class="eyebrow" style="margin-top:10px">POIs dos últimos 2 dias</p><table class="tbl"><tbody>${pois}</tbody></table>`:'<p class="note" style="margin-top:10px">Nenhum POI nos últimos 2 dias.</p>'}</div></div>
+   <p class="note">Dados da última leitura da agência (a cada 2 horas), não ao vivo. No modo Níveis técnicos o gráfico mostra a liquidez da mesa.</p>`;
+}
+
+function renderConf(){
+  const{conf}=R,m=state.mode;
+  $("conf").innerHTML=`<div class="card-h"><h2>Confluência</h2><span class="note">A confiança só sobe quando métodos diferentes concordam.</span></div>
+   <table class="tbl"><tbody>${conf.methods.map(x=>`<tr><td>${esc(x.k)}<span class="why">${esc(x.detail)}</span></td><td class="c">${chip(x.dir,m)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function renderTech(){
+  const{a,sig,I,i}=R,m=state.mode,c=sig.counts;
+  const by=id=>sig.trend.concat(sig.osc).find(x=>x.id===id);
+  let ma=`<div class="ma"><span class="h">Período</span><span class="h">Simples</span><span class="h">Exponencial</span>`;
+  [10,20,50,100,200].forEach(p=>{const s=by("sma"+p),e=by("ema"+p);const cell=x=>x?`<span class="n ${sgn(x.vote)}">${x.vote>0?"▲":"▼"} ${P(a,x.val)}</span>`:`<span class="n flat">—</span>`;ma+=`<span class="mono">${p}</span>${cell(s)}${cell(e)}`});ma+=`</div>`;
+  const row=(x,val)=>x?`<tr><td>${esc(x.k)}<span class="why">${esc(x.why||"")}</span></td><td class="v">${val}</td><td class="c">${chip(x.vote,m)}</td></tr>`:"";
+  const macd=by("macd"),adx=by("adx"),cmf=by("cmf");
+  const trendRows=row(macd,macd?nf(macd.val,a.dec+1):"")+row(adx,adx?`${nf(adx.val,1)}<span class="why">+DI ${nf(adx.extra.pdi,1)} · −DI ${nf(adx.extra.ndi,1)}</span>`:"")+row(cmf,cmf?nf(cmf.val,2):"");
+  const o=id=>by(id);
+  const ov=(id,f)=>{const x=o(id);return x?row(x,f(x)):""};
+  const oscRows=ov("rsi",x=>nf(x.val,1))+ov("stoch",x=>`${nf(x.val,1)}<span class="why">%D ${nf(x.extra.d,1)}</span>`)+ov("cci",x=>nf(x.val,0))+ov("wr",x=>nf(x.val,1))+ov("mfi",x=>nf(x.val,1))+ov("bb",x=>`${pct(x.val,0)}<span class="why">posição na faixa</span>`);
+  $("tech").innerHTML=`<div class="card-h"><h2>Análise técnica</h2><div class="chips"><span class="chip up">${c.buy} ${m==="sinal"?"compra":"alta"}</span><span class="chip">${c.neutral} neutro</span><span class="chip down">${c.sell} ${m==="sinal"?"venda":"baixa"}</span></div></div>
+   <div class="grid2"><div style="display:flex;flex-direction:column;gap:10px"><p class="eyebrow">Médias móveis · preço acima (▲) ou abaixo (▼)</p>${ma}
+   <p class="eyebrow" style="margin-top:6px">Tendência e fluxo</p><table class="tbl"><tbody>${trendRows}</tbody></table></div>
+   <div style="display:flex;flex-direction:column;gap:10px"><p class="eyebrow">Osciladores · apontam exageros</p><table class="tbl"><tbody>${oscRows}</tbody></table>
+   ${R.src.real&&!R.src.desk?'<p class="note">A fonte traz só preços de fechamento: MFI e CMF ficam de fora (precisam de volume) e médias longas aparecem quando há pontos suficientes.</p>':""}<p class="note">Médias e MACD seguem a tendência. Osciladores fazem o oposto: sobrecompra pesa contra a alta, sobrevenda contra a baixa. Quando os dois grupos discordam, a força do sinal cai.</p></div></div>`;
+}
+
+function renderSMC(){
+  const{a,smc,cs}=R,m=state.mode,n=cs.length,L=smc.last;
+  const fv=smc.fvg.slice(0,3).map(f=>`<span class="chip ${f.dir>0?"up":"down"}">${f.dir>0?"Alta":"Baixa"} ${P(a,f.lo)}–${P(a,f.hi)}</span>`).join("");
+  $("smc").innerHTML=`<div class="card-h"><h2>Estrutura de mercado</h2>${chip(smc.structure,m)}</div>
+   <dl class="kv"><dt>Padrão</dt><dd style="font-family:var(--f-body)">${esc(smc.pattern)}</dd>
+   <dt>Último rompimento</dt><dd>${L?`${L.type} de ${L.dir>0?"alta":"baixa"} em ${P(a,L.p)}<span class="why">há ${n-1-L.i} candles</span>`:"—"}</dd>
+   <dt>Rompimentos (100 candles)</dt><dd>${smc.recentEvents}</dd>
+   <dt>Resistências</dt><dd>${smc.res.length?smc.res.map(v=>P(a,v)).join(" · "):"Preço na máxima recente"}</dd>
+   <dt>Suportes</dt><dd>${smc.sup.length?smc.sup.map(v=>P(a,v)).join(" · "):"Preço na mínima recente"}</dd>
+   <dt>Lacunas abertas (FVG)</dt><dd>${smc.fvg.length}</dd></dl>
+   ${fv?`<div class="chips">${fv}</div>`:""}
+   <p class="note">BOS é o rompimento a favor da tendência. CHoCH é o primeiro rompimento contra ela, sinal de possível virada. FVG é uma lacuna deixada por um movimento rápido, que o preço costuma voltar para preencher.</p>`;
+}
+
+function renderDow(){
+  const{a,dow,fib,lv}=R,m=state.mode;
+  const near=fib.levels.reduce((b,x)=>Math.abs(x.p-lv.entry)<Math.abs(b.p-lv.entry)?x:b,fib.levels[0]);
+  $("dow").innerHTML=`<div class="card-h"><h2>Teoria de Dow e Fibonacci</h2></div>
+   <table class="tbl"><tbody>
+   <tr><td>Tendência primária<span class="why">Preço e inclinação da média de ${dow.primN}</span></td><td class="c">${chip(dow.prim,m)}</td></tr>
+   <tr><td>Tendência secundária<span class="why">Média de 50</span></td><td class="c">${chip(dow.sec,m)}</td></tr>
+   <tr><td>Tendência menor<span class="why">Média de 10</span></td><td class="c">${chip(dow.min,m)}</td></tr>
+   <tr><td>Volume<span class="why">Média dos candles de alta contra os de baixa (40 candles)</span></td><td class="c">${dow.volConfirms==null?`<span class="chip">${R.src.real?"Sem volume":"—"}</span>`:dow.volConfirms?'<span class="chip up">Confirma</span>':'<span class="chip warn">Não confirma</span>'}</td></tr>
+   </tbody></table>
+   <p class="eyebrow">Retração do último movimento de ${fib.upMove?"alta":"baixa"} (150 candles)</p>
+   <dl class="kv">${fib.levels.map(x=>`<dt${x===near?' style="color:var(--ink);font-weight:600"':""}>${nf(x.r*100,1)}%${x===near?" · preço atual perto":""}</dt><dd>${P(a,x.p)}</dd>`).join("")}</dl>`;
+}
+
+function renderMC(){
+  const{a,mc,H,lv,sig}=R,m=state.mode;
+  const hit=sig.dir&&mc.pTp!=null?`<dt>${m==="sinal"?"Alvo 1 antes do stop":"Ganha 2,25 ATR a favor antes de perder 1,5 ATR"}</dt><dd>${pct(mc.pTp)}</dd><dt>${m==="sinal"?"Stop antes do alvo 1":"Perde 1,5 ATR antes"}</dt><dd>${pct(mc.pStop)}</dd><dt>Nenhum dos dois no prazo</dt><dd>${pct(mc.pNone)}</dd>`:"";
+  $("mc").innerHTML=`<div class="card-h"><h2>Monte Carlo</h2><span class="note">${nf(mc.N,0)} simulações · próximas ${H.label}</span></div>
+   <div><div class="row" style="justify-content:space-between;font-size:13px"><span class="up">Alta ${pct(mc.pUp)}</span><span class="down">Baixa ${pct(1-mc.pUp)}</span></div>
+   <div class="bar" style="margin-top:6px" aria-hidden="true"><i style="width:${mc.pUp*100}%;background:var(--up)"></i><i style="width:${(1-mc.pUp)*100}%;background:var(--down)"></i></div></div>
+   <dl class="kv"><dt>Preço mediano no fim do prazo</dt><dd>${P(a,mc.p50)}</dd><dt>Faixa provável (90% dos casos)</dt><dd>${P(a,mc.p5)} – ${P(a,mc.p95)}</dd>${hit}
+   <dt>Volatilidade anualizada</dt><dd>${pct(mc.volAnn)}</dd><dt>ATR (14)</dt><dd>${P(a,lv.atr)}</dd></dl>
+   <p class="note">Sorteia retornos reais do próprio ativo (últimos 200 candles) para simular caminhos possíveis. Não prevê o futuro: mostra a faixa provável se o comportamento recente se repetir.</p>`;
+}
+
+function renderBT(){
+  const{bt}=R;const st=bt.exp>0.1?{c:"up",t:"Com vantagem no histórico"}:bt.exp<-0.05?{c:"down",t:"Sem vantagem no histórico"}:{c:"",t:"Resultado neutro"};
+  const s=(v,l)=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`;
+  $("bt").innerHTML=`<div class="card-h"><h2>Teste da regra no histórico</h2><span class="chip ${st.c}">${st.t}</span></div>
+   <div class="stats">${s(bt.trades,"Sinais testados")}${s(pct(bt.winRate,0),"Acerto")}${s((bt.exp>0?"+":"")+nf(bt.exp,2)+" R","Média por operação")}${s((bt.totalR>0?"+":"")+nf(bt.totalR,1)+" R","Resultado total")}${s(nf(bt.maxDD,1)+" R","Maior sequência de perda")}${s(bt.pf===Infinity?"∞":nf(bt.pf,2),"Fator de lucro")}</div>
+   ${bt.trades<10?`<p class="note"><b>Amostra pequena:</b> com ${bt.trades} sinais o resultado ainda não diz muito.</p>`:""}<p class="note">Cada sinal novo nos ${R.cs.length} ${R.src.real&&!R.src.desk?"pontos":"candles"} anteriores foi simulado com stop a 1,5 ATR, alvo a 1,5 vez o risco e saída em ${bt.horizon} candles. R é o valor arriscado por operação. ${R.src.desk?"Aqui o teste usa os candles reais da mesa Pregão Virtual.":R.src.real?"Aqui o teste usa a série real do CoinGecko. Para conclusões firmes, a versão final precisa de milhares de candles (Binance, por exemplo).":"Com dados simulados o resultado fica perto de zero, porque o preço é aleatório; com dados reais, é este número que mostra se o sistema tem vantagem."}</p>`;
+}
+
+function hm(x){x=((x%24)+24)%24;const h=Math.floor(x),mi=Math.round((x-h)*60);return String(h).padStart(2,"0")+":"+String(mi).padStart(2,"0")}
+function renderHours(){
+  const hd=HOURS[R.a.hours];const it=(x,c)=>`<div class="hr ${c}"><b>${hm(x[0]-3)}–${hm(x[1]-3)} Brasília · ${hm(x[0])}–${hm(x[1])} UTC</b>${esc(x[2])}</div>`;
+  $("hours").innerHTML=`<h2>Melhores horários</h2><p class="note" style="font-size:13.5px">${esc(hd.note)}</p>
+   <div class="hours"><p class="eyebrow">Mais favoráveis</p>${hd.good.map(x=>it(x,"good")).join("")}<p class="eyebrow" style="margin-top:6px">Evitar</p>${hd.bad.map(x=>it(x,"bad")).join("")}</div>
+   <p class="note">Horários aproximados. Mudam uma hora quando EUA ou Europa entram ou saem do horário de verão.</p>`;
+}
+
+function localSummary(){
+  const{a,sig,conf,mc,bt,smc,dow}=R,m=state.mode;
+  const dirTxt=sig.dir>0?"para alta":sig.dir<0?"para baixa":"sem direção definida";
+  let t=`${a.tk} (${R.src.tfDesc}) aponta ${dirTxt}: ${sig.counts.buy} indicadores a favor da alta, ${sig.counts.sell} a favor da baixa e ${sig.counts.neutral} neutros. `;
+  t+=`A estrutura mostra ${smc.pattern.toLowerCase()} e a tendência primária de Dow é ${trendWord(dow.prim)}. `;
+  t+=`O Monte Carlo estima ${pct(mc.pUp)} de chance de o preço estar acima do atual em ${R.H.label}. `;
+  if(sig.dir)t+=`A confiança é ${conf.label.toLowerCase()}, com ${conf.agree} de ${conf.methods.length} métodos concordando. `;
+  t+=bt.exp>0.1?`No histórico, a regra teve resultado positivo (${nf(bt.exp,2)} R por operação).`:`No histórico, a regra não mostrou vantagem clara (${nf(bt.exp,2)} R por operação).`;
+  return t;
+}
+
+function wppText(){
+  const{a,sig,lv,conf,scen,mc}=R,m=state.mode,d=new Date(R.at);
+  const ts=d.toLocaleDateString("pt-BR")+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  let t;
+  if(m==="sinal"){
+    t=`${sig.dir>0?"🟢":sig.dir<0?"🔴":"⚪"} *${a.tk} · ${R.tfLabel}* — ${ts}\n*${sigLabel(sig,m)}* · força ${sig.force}% · confiança ${conf.label.toLowerCase()}\n`;
+    if(sig.dir)t+=`\nEntrada: ${P(a,lv.entry)}\nStop: ${P(a,lv.stop)}\nAlvo 1: ${P(a,lv.tp1)}\nAlvo 2: ${P(a,lv.tp2)}\nAlvo 3: ${P(a,lv.tp3)}\nRisco/retorno: 1:${nf(lv.rr,1)}\n`;
+    else t+=`\nSem entrada: indicadores sem maioria clara.\n`;
+  }else{
+    t=`📊 *${a.tk} · ${R.tfLabel}* — ${ts}\n*${sigLabel(sig,m)}* · força ${sig.force}%\n\n📈 Se subir acima de ${P(a,scen.up.trig)}: alvos ${P(a,scen.up.t1)} e ${P(a,scen.up.t2)}\n📉 Se cair abaixo de ${P(a,scen.dn.trig)}: alvos ${P(a,scen.dn.t1)} e ${P(a,scen.dn.t2)}\n`;
+  }
+  t+=`\n📊 Indicadores: ${sig.counts.buy} alta · ${sig.counts.sell} baixa · ${sig.counts.neutral} neutro\n🎲 Monte Carlo: ${pct(mc.pUp)} de chance de alta em ${R.H.label}\n`;
+  if(conf.warnings.length)t+=`⚠️ ${conf.warnings[0]}\n`;
+  t+=`\n_${m==="sinal"?"Sinal automático. Não é recomendação personalizada de investimento.":"Conteúdo educacional. Não é recomendação de investimento."}_`;
+  return t;
+}
+
+function renderHist(){
+  const el=$("hist");
+  if(!history.length){el.innerHTML=`<p class="note">As análises aparecem aqui quando você troca de ativo, de tempo gráfico ou toca em Nova análise. Ficam salvas só neste navegador.</p>`;return}
+  el.innerHTML=history.slice(0,15).map(hh=>{const d=new Date(hh.at);const dir=hh.code.startsWith("COMPRA")?1:hh.code.startsWith("VENDA")?-1:0;
+    return `<div><span class="mono note">${d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})} ${d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</span><span><b>${esc(hh.tk)}</b> · ${esc(hh.tf)} <span class="mono note">${esc(hh.price)}</span></span><span class="chip ${sgn(dir)}">${esc(hh.code.replace("_"," "))} ${hh.force}%</span></div>`}).join("");
+}
+function logHistory(){
+  const last=R.cs[R.cs.length-1];const key=R.a.tk+"|"+R.tfLabel+"|"+last.t+"|"+(R.src.real?R.src.storedAt:0);
+  if(history[0]&&history[0].key===key)return;
+  history.unshift({key,at:R.at,tk:R.a.tk,tf:R.tfLabel+(R.src.real?" · real":""),code:R.sig.code,force:R.sig.force,price:P(R.a,last.c)});
+  history=history.slice(0,30);saveHist();
+}
+
+function resetAI(){if(aiCtl){aiCtl.abort();aiCtl=null}$("aiText").textContent=localSummary();$("aiState").textContent=sample?"Resumo automático":"";$("aiBtn").disabled=false}
+
+function showLoading(msg){document.querySelector(".wrap").classList.add("busy");$("hero").innerHTML=`<div class="hero-top"><div><div class="tk">${esc(asset().tk)}</div><div class="meta">${esc(msg)}</div></div><span class="sig flat">…</span></div>`}
+async function render(log,force){
+  const a=asset();renderControls();
+  if(deskOf(a))reqTok++;
+  else if(a.cg&&mcpState==="pending"){showLoading("Conectando ao CoinGecko…");return}
+  else if(a.cg&&mcpState==="ready"){const key=a.cg+"|"+state.rng;
+    if(force||(!realData[key]&&!realErr[key])){const tok=++reqTok;showLoading("Buscando cotações no CoinGecko…");await fetchReal(a,state.rng,force);if(tok!==reqTok)return}}
+  else reqTok++;
+  document.querySelector(".wrap").classList.remove("busy");
+  R=analyze();renderControls();renderHero();renderChart();renderDesk();renderConf();renderTech();renderSMC();renderDow();renderMC();renderBT();renderHours();
+  $("wpp").textContent=wppText();$("copyState").textContent="";resetAI();
+  if(log)logHistory();renderHist();saveState();
+}
+function renderMode(){if(!R||R.a!==asset())return render(false);renderControls();renderHero();renderChart();renderDesk();renderConf();renderTech();renderSMC();renderDow();renderMC();$("wpp").textContent=wppText();resetAI();saveState()}
+
+async function runAI(){
+  if(!sample||!R)return;const{a,sig,lv,conf,mc,bt,smc,dow,scen,I,i}=R,m=state.mode;
+  aiCtl=new AbortController();const ctl=aiCtl;$("aiBtn").disabled=true;$("aiState").textContent="Analisando…";$("aiText").textContent="";
+  const data={ativo:a.tk,nome:a.name,classe:a.cls,periodo:R.src.tfDesc,fonte:R.src.desk?"candles reais da mesa Pregão Virtual":R.src.real?"CoinGecko (preços reais)":"dados simulados",preco:P(a,lv.entry),leitura:sigLabel(sig,m),forca_pct:sig.force,confianca:conf.label,
+    votos:{alta:sig.counts.buy,baixa:sig.counts.sell,neutro:sig.counts.neutral},
+    indicadores:Object.assign({ifr:+I.rsi[i].toFixed(1),macd_histograma:+I.hist[i].toFixed(a.dec+1),adx:+I.adx[i].toFixed(1),di_mais:+I.pdi[i].toFixed(1),di_menos:+I.ndi[i].toFixed(1),estocastico_k:+I.k[i].toFixed(1),cci:+I.cci[i].toFixed(0),williams_r:+I.wr[i].toFixed(1)},I.noVol?{}:{mfi:+I.mfi[i].toFixed(1),cmf:+I.cmf[i].toFixed(2)}),
+    metodos:conf.methods.map(x=>({metodo:x.k,direcao:W("niveis",x.dir),detalhe:x.detail})),
+    estrutura:{padrao:smc.pattern,ultimo_rompimento:smc.last?`${smc.last.type} de ${smc.last.dir>0?"alta":"baixa"} em ${P(a,smc.last.p)}`:"nenhum",suportes:smc.sup.map(v=>P(a,v)),resistencias:smc.res.map(v=>P(a,v))},
+    dow:{primaria:trendWord(dow.prim),secundaria:trendWord(dow.sec),menor:trendWord(dow.min)},
+    monte_carlo:{chance_alta:pct(mc.pUp),horizonte:R.H.label,mediana:P(a,mc.p50),faixa_90:`${P(a,mc.p5)} a ${P(a,mc.p95)}`},
+    teste_historico:{sinais:bt.trades,acerto:pct(bt.winRate,0),media_por_operacao_R:+bt.exp.toFixed(2)},
+    pontos_de_atencao:conf.warnings};
+  if(m==="sinal"&&sig.dir)data.niveis={entrada:P(a,lv.entry),stop:P(a,lv.stop),alvo1:P(a,lv.tp1),alvo2:P(a,lv.tp2),alvo3:P(a,lv.tp3),risco_retorno:"1:"+nf(lv.rr,1)};
+  if(m==="niveis")data.cenarios={alta:{gatilho:P(a,scen.up.trig),alvos:[P(a,scen.up.t1),P(a,scen.up.t2)],invalida:P(a,scen.up.inv)},baixa:{gatilho:P(a,scen.dn.trig),alvos:[P(a,scen.dn.t1),P(a,scen.dn.t2)],invalida:P(a,scen.dn.inv)}};
+  const task=m==="sinal"
+    ?"Explique o sinal calculado pelo algoritmo: por que aponta para esse lado, o que sustenta e o que enfraquece a leitura (use os pontos de atenção), o que o Monte Carlo e o teste histórico dizem sobre a confiabilidade e o que faria o sinal perder validade. Use só os níveis fornecidos, sem criar novos."
+    :"Explique a leitura técnica e os dois cenários (alta e baixa) com os níveis fornecidos, dizendo o que confirmaria cada um e o que os métodos indicam. Não recomende comprar, vender ou manter.";
+  const prompt=`Você é um analista técnico que escreve em português do Brasil para traders iniciantes. ${task} Explique termos técnicos em poucas palavras. Regras: não diga que o resultado é garantido, não invente notícias ou fatos externos, não use markdown, títulos ou listas. Escreva de 6 a 8 frases em texto corrido.\n\nDados da análise:\n${JSON.stringify(data,null,1)}`;
+  try{
+    await sample(prompt,{signal:ctl.signal,modelTier:"quick",onText:({text})=>{if(ctl===aiCtl)$("aiText").textContent=text}});
+    if(ctl===aiCtl)$("aiState").textContent="Gerado por IA a partir dos dados acima";
+  }catch(e){
+    if(ctl!==aiCtl)return;$("aiText").textContent=localSummary();
+    if(e&&e.code==="not_granted"){$("aiBtn").hidden=true;$("aiState").textContent=""}
+    else $("aiState").textContent=e&&e.code==="rate_limited"?"Muitos pedidos seguidos. Tente em um minuto.":"A IA não respondeu. Mostrando o resumo automático.";
+  }finally{if(ctl===aiCtl)$("aiBtn").disabled=false}
+}
+
+// ---------- eventos ----------
+$("asset").addEventListener("change",e=>{state.tk=e.target.value;render(true)});
+$("tfSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.d){if(b.dataset.d===state.dtf)return;state.dtf=b.dataset.d}else if(b.dataset.r){if(b.dataset.r===state.rng)return;state.rng=b.dataset.r}else{if(b.dataset.tf===state.tf)return;state.tf=b.dataset.tf}render(true)});
+$("hero").addEventListener("click",e=>{if(e.target.closest("[data-act=retry]"))render(true,true)});
+$("modeSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b||b.dataset.m===state.mode)return;state.mode=b.dataset.m;renderMode()});
+$("refresh").addEventListener("click",()=>{const a=asset();if(deskOf(a))render(true);else if(a.cg&&mcpState==="ready")render(true,true);else{E.step(series(a,a.cg&&usesReal(a)?RMAP[state.rng]:state.tf));render(true)}});
+$("aiBtn").addEventListener("click",runAI);
+$("clearHist").addEventListener("click",()=>{history=[];saveHist();renderHist()});
+$("copyBtn").addEventListener("click",()=>{const t=$("wpp").textContent;const sel=()=>{const r=document.createRange();r.selectNodeContents($("wpp"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("copyState").textContent="Texto selecionado: use copiar do seu aparelho."};
+  try{navigator.clipboard.writeText(t).then(()=>{$("copyState").textContent="Copiado"},sel)}catch(e){sel()}});
+
+render(false);
+if(window.claude&&window.claude.use){window.claude.use("db").then(db=>{if(!db)return;
+  db.doc("radar/candles").onSnapshot(snap=>{deskDoc=snap.exists?snap.data():null;render(false)},()=>{})}).catch(()=>{})}
+if(mcpState==="pending")window.claude.use("mcp").then(m=>{mcp=m;mcpState=m?"ready":"none";render(false)},()=>{mcpState="none";render(false)});
+if(window.claude&&window.claude.use){window.claude.use("sample").then(s=>{if(!s)return;sample=s;$("aiBtn").hidden=false;if(!aiCtl)$("aiState").textContent="Resumo automático"}).catch(()=>{})}
+})();
+
+</script>

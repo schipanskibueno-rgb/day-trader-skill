@@ -145,6 +145,20 @@ agendada agora le a branch `claude/practical-keller-hauv05`. Nos ultimos 60
 dias a v2 com filtro H1 fez 5 trades, todos stop: amostra pequena, segue o
 plano dos blocos de 25.
 
+## Consulta antes de operar (2026-10-28)
+
+- `agency/radar-engine.js` e o motor do Radar de Ativos
+  (https://claude.ai/artifact/WE7tnuyZmu3in4q1JCxetr, fonte em
+  `agency/radar.html`). Antes de cada ordem a mesa le estrutura + sinal do
+  Radar em 2, 5, 10 e 15 minutos e guarda em `consult` da operacao.
+- Aba Graficos na agencia (BTC e ouro em 2/5/10/15m, liquidez de 15m,
+  varridas, POIs). O Radar mostra os mesmos candles para BTC e OURO, lidos do
+  banco dele (`radar/candles`), gravado pela tarefa agendada
+  (`--radar-out`).
+- Gatilho de 2m roda no papel ao lado do de 5m (`desk.compare`). Teste de 6
+  meses no BTC: 2m pior que 5m (15 trades -0,39R contra 31 trades +0,25R, sem
+  filtro de 1h); o usuario pediu para rodar os dois e comparar em blocos.
+
 ## Proximos passos sugeridos
 
 1. Ajudar o usuario a compilar e instalar o EA no MT5 demo e conferir as

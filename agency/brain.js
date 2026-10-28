@@ -2,7 +2,7 @@
 /* The agency's brain: one pass over real market data, written as one JSON
  * document that the 3D agency page shows. Node 18+ (global fetch), no packages.
  *
- *   node agency/brain.js --out state.json [--config config.json] [--every-hours 2]
+ *   node agency/brain.js --out state.json [--config config.json] [--every-hours 2] [--radar-out radar.json]
  *
  * Markets: BTC (Binance), gold and the four major currencies through their
  * CME futures on Yahoo Finance (spot forex has no volume). The desk trades
@@ -21,6 +21,9 @@
 const path = require("path");
 const fs = require("fs");
 const M = require(path.join(__dirname, "method.js"));
+const RADAR = require(path.join(__dirname, "radar-engine.js"));
+const RADAR_URL = "https://claude.ai/artifact/WE7tnuyZmu3in4q1JCxetr";
+const RADAR_NAME = { BTC: "BTC", XAU: "OURO" };   // how the Radar page names the desk's markets
 
 const FOUNDED = "2026-10-27";          // the paper desk trades from this day on
 const DEFAULTS = { capital: 5000, stopUsd: 80, maxStopsPerDay: 2, rr: 3, block: 25 };
@@ -305,12 +308,27 @@ function structureAt(bars, T) {
   return { flow, word: flow > 0 ? "topos e fundos subindo" : flow < 0 ? "topos e fundos caindo" : "lateral" };
 }
 
-// the consultation the desk makes before an order: every chart of CHART_TFS up to the moment
+// the Radar de Ativos reading of one chart up to time T: its indicators vote COMPRA / VENDA / NEUTRO
+function radarAt(bars, T) {
+  let n = bars.length;
+  while (n > 0 && bars[n - 1].t > T) n--;
+  const cs = bars.slice(Math.max(0, n - 300), n);
+  if (cs.length < 60) return null;
+  const sig = RADAR.signalAt(RADAR.indicators(cs), cs.length - 1);
+  return { code: sig.code.replace("_", " "), dir: sig.dir, force: sig.force };
+}
+
+// the consultation the desk makes before an order: every chart of CHART_TFS up to the moment,
+// its structure and the Radar de Ativos signal
 function consult(byTf, T) {
   const out = {};
-  CHART_TFS.forEach(tf => { const b = byTf[tf]; out[tf + "m"] = b ? structureAt(b, T) : { flow: 0, word: "sem dados" }; });
+  CHART_TFS.forEach(tf => {
+    const b = byTf[tf];
+    out[tf + "m"] = b ? Object.assign(structureAt(b, T), { radar: radarAt(b, T) }) : { flow: 0, word: "sem dados", radar: null };
+  });
   return out;
 }
+const radarWord = r => r && r.radar ? " (Radar: " + r.radar.code + " " + r.radar.force + "%)" : "";
 
 function chartPack(m, byTf, liq, trades, now) {
   const tfs = {};
@@ -322,7 +340,9 @@ function chartPack(m, byTf, liq, trades, now) {
     trigger: t.trigger, aligned: t.aligned, dir: t.dir, entry: t.entry, stop: t.stop, take: t.take, entryT: t.entryT, exitT: t.exitT || null,
     result: t.result || (t.open ? "aberta" : null), zone: t.poi ? t.poi.zone : null, sweepT: t.poi ? t.poi.sweepT : null,
     level: t.poi ? t.poi.level : null }));
-  return { asset: m.short, dec: m.dec, tfs, liquidity: liq, pois, reading: consult(byTf, now) };
+  const radar = {};
+  CHART_TFS.forEach(tf => { const b = byTf[tf]; if (b) radar[tf + "m"] = b.slice(-300).map(x => [x.t, x.o, x.h, x.l, x.c, round(x.v, 4)]); });
+  return { asset: m.short, dec: m.dec, tfs, liquidity: liq, pois, reading: consult(byTf, now), radarCandles: radar };
 }
 
 function readMarket(m, b15, s15, study, now, b5, openTrade) {
@@ -402,7 +422,7 @@ function meeting(st, now) {
     e.moves.map(x => x.asset + " " + sgn(x.pct) + "%").join(", ")).join(" | ") : "Nenhum evento politico ou de juros novo nas ultimas 48h.");
   const line = x => x.short + ": macro " + flowWord(x.macro ? x.macro.flow : 0) + (x.macro && x.macro.choch ? " (CHoCH de " + x.macro.choch + ")" : "") + ", " + x.status;
   const look = s => { const c = st.charts[s]; if (!c) return "";
-    return " Consultei os graficos: " + Object.keys(c.reading).map(k => k + " " + c.reading[k].word).join(", ") + "."; };
+    return " Consultei os graficos e o Radar: " + Object.keys(c.reading).map(k => k + " " + c.reading[k].word + radarWord(c.reading[k])).join(", ") + "."; };
   if (!closed) {
     const b = mk("BTC"), g = mk("XAU");
     if (b) say("rafa", line(b) + "." + look("BTC"));
@@ -550,6 +570,14 @@ async function main() {
   st.meeting = meeting(st, now);
   st.agents = agentReports(st);
 
+  // the candles, liquidity and POIs the Radar de Ativos page shows for the desk's markets
+  const radarDoc = { updatedAt: now, nextAt: st.nextAt, source: "Agencia Pregao Virtual (Binance e futuros CME)", assets: {} };
+  Object.keys(st.charts).forEach(k => {
+    const c = st.charts[k];
+    radarDoc.assets[RADAR_NAME[k] || k] = { tfs: c.radarCandles, liquidity: c.liquidity, pois: c.pois, reading: c.reading, dec: c.dec };
+    delete c.radarCandles;
+  });
+  if (arg("--radar-out")) fs.writeFileSync(arg("--radar-out"), JSON.stringify(radarDoc));
   const json = JSON.stringify(st);
   if (out) fs.writeFileSync(out, json); else process.stdout.write(json + "\n");
   console.error("agency: " + markets.length + " markets, " + headlines.length + " news, live " + L.n + " trades, desk " +
@@ -558,4 +586,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
-module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity };
+module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity, radarAt };
