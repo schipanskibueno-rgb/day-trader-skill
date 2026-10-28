@@ -208,7 +208,9 @@ const PARTNER = { rafa: ["marta", "bia"], bia: ["rafa", "duda", "marta"], duda: 
                   paulo: ["otavio", "sofia"], helena: ["marta", "otavio", "kenji"], caio: ["nina", "kenji"], nina: ["caio", "teo"] };
 const AISLE = -0.75, EXIT = [17.4, AISLE], MEET = { c: [-0.5, 4.2], r: 2.4, door: [-0.5, 0.6] };
 const COFFEE = [-4.5, -3.4];
-const MEET_EVERY = 150, LINE_SECONDS = 6.5;
+// the meeting is held when a new reading arrives (every 3 hours) and once when the page opens
+const MEET_EVERY = 3 * 3600, LINE_SECONDS = 6.5;
+let lastMinutes = null;
 
 let state = null, people = DEFAULT_PEOPLE, db = null, demoClosed = false;
 const $ = id => document.getElementById(id);
@@ -246,7 +248,13 @@ async function connect() {
   }, () => { $("status").textContent = "conexao com o banco perdida; recarregue a pagina"; });
 }
 
-function applyState() { renderStatus(); renderTicker(); if (tab !== "settings") renderTab(); paintScreens(); applyDesk(); }
+function applyState() {
+  // new minutes from a new reading: the team meets again
+  if (state.meeting && state.meeting.time !== lastMinutes) {
+    if (lastMinutes !== null && meeting.phase === "off") meeting.next = clock.elapsedTime + 5;
+    lastMinutes = state.meeting.time;
+  }
+  renderStatus(); renderTicker(); if (tab !== "settings") renderTab(); paintScreens(); applyDesk(); }
 
 function renderStatus() {
   if (!state) return;
@@ -295,8 +303,8 @@ function stopsDots(n, max) { const s = el("span", "stops"); for (let i = 0; i < 
 
 function viewMeeting(v) {
   v.append(el("h3", null, "Ata da reuniao · " + when(state.meeting.time)));
-  v.append(el("p", "note", "Cada fala vem dos dados desta leitura. A reuniao e encenada no escritorio a cada " +
-    (MEET_EVERY / 60) + " minutos" + (deskClosed() ? ", agora sem o setor de trade (mesa fechada)." : ".")));
+  v.append(el("p", "note", "Cada fala vem dos dados desta leitura. A reuniao acontece a cada nova leitura do mercado (de 3 em 3 horas) e quando voce abre a pagina" +
+    (deskClosed() ? ", agora sem o setor de trade (mesa fechada)." : ".")));
   lines().forEach((l, i) => {
     const row = el("div", "line" + (i === speaking ? " now" : "")); row.id = "line" + i;
     row.append(avatar(l.who));
@@ -483,7 +491,7 @@ function viewCharts(v) {
     });
     v.append(r);
   }
-  v.append(el("p", "note", "Material de consulta: antes de cada ordem a mesa le estes quatro tempos e o sinal do Radar de Ativos em cada um, e registra a leitura junto da operacao (aba Corretora). Os mesmos candles aparecem no Radar de Ativos. Os graficos sao da ultima leitura da agencia, que acontece a cada 2h; nao sao ao vivo."));
+  v.append(el("p", "note", "Material de consulta: antes de cada ordem a mesa le estes quatro tempos e o sinal do Radar de Ativos em cada um, e registra a leitura junto da operacao (aba Corretora). Os mesmos candles aparecem no Radar de Ativos. Os graficos sao da ultima leitura da agencia, que acontece a cada 3h; nao sao ao vivo."));
 }
 
 function viewMarkets(v) {
@@ -626,7 +634,7 @@ function viewSettings(v) {
     const cap = +ic.value, st = +is.value;
     if (!(cap >= 100 && st > 0 && st <= cap)) { toast("Use conta de pelo menos US$ 100 e stop menor que a conta."); return; }
     if (!db) { toast("Sem conexao com o banco: abra pelo link logado no claude.ai."); return; }
-    try { await db.doc("agency/config").set({ capital: cap, stopUsd: st, savedAt: Date.now() }); toast("Salvo. Vale a partir da proxima leitura (ate 2h)."); }
+    try { await db.doc("agency/config").set({ capital: cap, stopUsd: st, savedAt: Date.now() }); toast("Salvo. Vale a partir da proxima leitura (ate 3h)."); }
     catch (err) { toast("Nao foi possivel salvar: so o dono da pagina pode mudar os ajustes."); }
   };
   v.append(f);
@@ -654,6 +662,7 @@ const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 0.5, -1.5);
 controls.enableDamping = true; controls.maxPolarAngle = 1.38; controls.minDistance = 6; controls.maxDistance = 55;
 controls.autoRotate = false;
+controls.rotateSpeed = -0.9;                        // drag up looks up, drag right turns right
 
 scene.add(new THREE.HemisphereLight("#c8dcff", "#2a2018", 0.95));
 const sun = new THREE.DirectionalLight("#ffffff", 1.15);

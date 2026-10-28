@@ -191,7 +191,7 @@ footer{font-size:12px;color:var(--muted);max-width:75ch}
     <div class="hist" id="hist"></div>
   </section>
 
-  <footer>BTC e OURO mostram candles reais de 2, 5, 10 e 15 minutos gravados pela agência Pregão Virtual a cada 2 horas (Binance e futuros CME). As outras criptomoedas usam preços reais do CoinGecko quando o conector está ligado na sua conta; os demais ativos ainda são simulados. Na versão final, os candles completos (abertura, máxima, mínima e volume) vêm de APIs como Binance (cripto), brapi.dev (B3) e Twelve Data (câmbio, índices e commodities), e todo o cálculo deste painel roda igual. O conteúdo é gerado por algoritmo, não é recomendação de investimento e resultados passados não garantem resultados futuros.</footer>
+  <footer>BTC e OURO mostram candles reais de 2, 5, 10 e 15 minutos gravados pela agência Pregão Virtual a cada 3 horas (Binance e futuros CME). As outras criptomoedas usam preços reais do CoinGecko quando o conector está ligado na sua conta; os demais ativos ainda são simulados. Na versão final, os candles completos (abertura, máxima, mínima e volume) vêm de APIs como Binance (cripto), brapi.dev (B3) e Twelve Data (câmbio, índices e commodities), e todo o cálculo deste painel roda igual. O conteúdo é gerado por algoritmo, não é recomendação de investimento e resultados passados não garantem resultados futuros.</footer>
 </div>
 
 <script>
@@ -617,7 +617,7 @@ function renderDesk(){
    <div class="grid2"><div><p class="eyebrow">Leitura por tempo (estrutura e sinal do Radar)</p><table class="tbl"><tbody>${rd}</tbody></table></div>
    <div><p class="eyebrow">Liquidez de 15m ainda não varrida</p><dl class="kv"><dt>Acima</dt><dd>${dk.liquidity.above.length?dk.liquidity.above.map(f).join(" · "):"—"}</dd><dt>Abaixo</dt><dd>${dk.liquidity.below.length?dk.liquidity.below.map(f).join(" · "):"—"}</dd><dt>Varridas em 24h</dt><dd>${dk.liquidity.swept.length}</dd></dl>
    ${pois?`<p class="eyebrow" style="margin-top:10px">POIs dos últimos 2 dias</p><table class="tbl"><tbody>${pois}</tbody></table>`:'<p class="note" style="margin-top:10px">Nenhum POI nos últimos 2 dias.</p>'}</div></div>
-   <p class="note">Dados da última leitura da agência (a cada 2 horas), não ao vivo. No modo Níveis técnicos o gráfico mostra a liquidez da mesa.</p>`;
+   <p class="note">Dados da última leitura da agência (a cada 3 horas), não ao vivo. No modo Níveis técnicos o gráfico mostra a liquidez da mesa.</p>`;
 }
 
 function renderConf(){

@@ -2,7 +2,7 @@
 /* The agency's brain: one pass over real market data, written as one JSON
  * document that the 3D agency page shows. Node 18+ (global fetch), no packages.
  *
- *   node agency/brain.js --out state.json [--config config.json] [--every-hours 2] [--radar-out radar.json]
+ *   node agency/brain.js --out state.json [--config config.json] [--every-hours 3] [--radar-out radar.json]
  *
  * Markets: BTC (Binance), gold and the four major currencies through their
  * CME futures on Yahoo Finance (spot forex has no volume). The desk trades
