@@ -118,6 +118,14 @@ h3 { font: 600 13px/1.2 var(--display); text-transform: uppercase; letter-spacin
 .form input { font: 500 16px/1 var(--mono); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-height: 42px; }
 .tog { display: flex; gap: 8px; align-items: center; font-size: 13px; }
 svg.spark { width: 100%; height: 70px; display: block; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button { font: 600 12px/1 var(--mono); color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; min-height: 34px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #1a1205; border-color: var(--accent); }
+.chartwrap { position: relative; width: 100%; height: 0; padding-bottom: 65.8%; }
+svg.candles { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: var(--bg); border-radius: 10px; }
+svg.candles text { font: 10px var(--mono); fill: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--text); color: var(--bg);
          padding: 10px 16px; border-radius: 10px; font-weight: 600; z-index: 20; max-width: calc(100% - 32px); }
 </style>
@@ -151,6 +159,7 @@ svg.spark { width: 100%; height: 70px; display: block; }
         <button role="tab" data-tab="meeting" aria-selected="true">Reuniao</button>
         <button role="tab" data-tab="broker" aria-selected="false">Corretora</button>
         <button role="tab" data-tab="markets" aria-selected="false">Mercados</button>
+        <button role="tab" data-tab="charts" aria-selected="false">Graficos</button>
         <button role="tab" data-tab="research" aria-selected="false">Pesquisa</button>
         <button role="tab" data-tab="team" aria-selected="false">Equipe</button>
         <button role="tab" data-tab="settings" aria-selected="false">Ajustes</button>
@@ -278,7 +287,7 @@ function renderTab() {
   const v = $("view"); v.textContent = "";
   if (tab === "settings") return viewSettings(v);
   if (!state) { v.append(el("p", "muted", "Aguardando a primeira leitura do mercado.")); return; }
-  ({ meeting: viewMeeting, broker: viewBroker, markets: viewMarkets, research: viewResearch, team: viewTeam })[tab](v);
+  ({ meeting: viewMeeting, broker: viewBroker, markets: viewMarkets, charts: viewCharts, research: viewResearch, team: viewTeam })[tab](v);
 }
 function avatar(id) { const a = el("div", "av", person(id).name[0]); a.style.background = COLORS[id] || "#888"; return a; }
 function kpi(label, value, cls) { const k = el("div", "kpi"); k.append(el("b", "num " + (cls || ""), value), el("span", null, label)); return k; }
@@ -322,6 +331,7 @@ function tradeRow(t) {
   const r = el("div", "row"), left = el("div"), d = t.dec === undefined ? 2 : t.dec;
   left.append(el("div", null, (t.dir > 0 ? "Compra " : "Venda ") + t.asset + (t.entryT ? " · " + when(t.entryT) : "")));
   left.append(el("div", "small muted num", "entrada " + fmt(t.entry, d) + " · stop " + fmt(t.stop, d) + " · alvo " + fmt(t.take, d)));
+  if (t.consult) left.append(el("div", "small muted", "consulta antes da ordem: " + Object.keys(t.consult).map(k => k + " " + t.consult[k].word).join(" · ")));
   r.append(left);
   if (!t.open && t.usd !== null) r.append(el("b", "num " + (t.usd > 0 ? "pos" : "neg"), (t.usd > 0 ? "+" : "") + usd(t.usd) + " (" + sgn(t.r) + "R)"));
   else if (t.open) r.append(el("b", "num " + (t.openUsd >= 0 ? "pos" : "neg"), "aberto " + (t.openUsd >= 0 ? "+" : "") + usd(t.openUsd)));
@@ -373,6 +383,19 @@ function viewBroker(v) {
   v.append(blocksView(S.blocks, cfg.stopUsd));
   const ss = el("div", "rows"); S.closed.forEach(t => ss.append(tradeRow(t))); v.append(ss);
 
+  if (D.compare) {
+    const C = D.compare;
+    v.append(el("h3", null, "Gatilho de 2 minutos, lado a lado (mesma regra)"));
+    const kc = el("div", "kpis");
+    kc.append(kpi("ao vivo desde a abertura", C.live.n + " trades · " + (C.live.pnl >= 0 ? "+" : "") + usd(C.live.pnl), C.live.pnl >= 0 ? "pos" : "neg"),
+              kpi("60 dias: trades / acerto", C.sim.n + " / " + C.sim.winRate + "%"),
+              kpi("60 dias: media por trade", sgn(C.sim.expectancy) + "R", C.sim.expectancy >= 0 ? "pos" : "neg"),
+              kpi("60 dias: resultado", (C.sim.pnl >= 0 ? "+" : "") + usd(C.sim.pnl), C.sim.pnl >= 0 ? "pos" : "neg"));
+    v.append(kc);
+    v.append(blocksView(C.live.blocks, cfg.stopUsd));
+    v.append(el("p", "note", "A mesa oficial (e o robo do MT5) usa o gatilho de 5 minutos. O de 2 minutos roda no papel ao lado; comparamos bloco a bloco de 25 trades."));
+  }
+
   const Y = D.study;
   v.append(el("h3", null, isV2() ? "Validacao fractal: POI em 1h com liquidez de 4h, 2 anos" : "Validacao fractal: mesmas regras em 1h, 2 anos"));
   const k3 = el("div", "kpis");
@@ -381,6 +404,84 @@ function viewBroker(v) {
   v.append(k3);
   if (Y.curve.length > 1) v.append(spark([cfg.capital].concat(Y.curve.map(p => p.eq)), Y.pnl >= 0 ? "#3fd08f" : "#ff6b6b"));
   v.append(el("p", "note", "Dinheiro de mentira, precos de verdade. Com alvo de 3R o ponto de equilibrio e 25% de acerto. Teste no passado nao garante o futuro; nada vai para uma corretora real."));
+}
+
+// ------------------------------------------------------------------ charts the desk consults before an order
+let chartAsset = "BTC", chartTf = "2m";
+function candleSvg(pack, tf) {
+  const svgNS = "http://www.w3.org/2000/svg", W = 380, H = 250, pl = 4, pr = 58, pt = 8, pb = 18;
+  const s = document.createElementNS(svgNS, "svg"); s.setAttribute("viewBox", "0 0 " + W + " " + H); s.classList.add("candles");
+  const cs = pack.tfs[tf] || [];
+  if (cs.length < 2) return s;
+  const t0 = cs[0][0], t1 = cs[cs.length - 1][0], step = (t1 - t0) / (cs.length - 1) || 1;
+  const liq = pack.liquidity || { above: [], below: [], swept: [] };
+  let lo = Math.min(...cs.map(c => c[3])), hi = Math.max(...cs.map(c => c[2]));
+  const span0 = hi - lo || 1;
+  const near = v => v >= lo - span0 * 0.35 && v <= hi + span0 * 0.35;
+  const lines = [];
+  liq.above.filter(near).forEach(v => lines.push({ v, c: "var(--sell)", t: "liq", dash: "5 3" }));
+  liq.below.filter(near).forEach(v => lines.push({ v, c: "var(--buy)", t: "liq", dash: "5 3" }));
+  liq.swept.filter(x => x.t >= t0 && near(x.p)).forEach(x => lines.push({ v: x.p, c: "var(--muted)", t: "varrida", dash: "2 3" }));
+  const pois = (pack.pois || []).filter(p => p.zone && (p.exitT || t1) >= t0);
+  lines.concat(pois.flatMap(p => [{ v: p.zone[0] }, { v: p.zone[1] }])).forEach(x => { lo = Math.min(lo, x.v); hi = Math.max(hi, x.v); });
+  const pad = (hi - lo) * 0.04 || 1; lo -= pad; hi += pad;
+  const cw = (W - pl - pr) / cs.length, X = t => pl + ((t - t0) / step + 0.5) * cw, Y = v => pt + (hi - v) * (H - pt - pb) / (hi - lo);
+  const add = (tag, attrs, text) => { const e = document.createElementNS(svgNS, tag); Object.keys(attrs).forEach(k => e.setAttribute(k, attrs[k])); if (text) e.textContent = text; s.append(e); return e; };
+  for (let k = 0; k <= 4; k++) { const y = pt + (H - pt - pb) * k / 4; add("line", { x1: pl, x2: W - pr, y1: y, y2: y, stroke: "var(--line)", "stroke-width": 0.5 });
+    add("text", { x: W - pr + 4, y: y + 3 }, fmt(hi - (hi - lo) * k / 4, pack.dec)); }
+  // POI zones: from the sweep (or the entry) until the exit or now
+  pois.forEach(p => {
+    const xa = Math.max(pl, X(Math.max(t0, p.sweepT || p.entryT))), xb = Math.min(W - pr, X(Math.min(t1, p.exitT || t1)) + cw / 2);
+    const col = p.dir > 0 ? "var(--buy)" : "var(--sell)";
+    add("rect", { x: xa, y: Y(p.zone[1]), width: Math.max(2, xb - xa), height: Math.max(1, Y(p.zone[0]) - Y(p.zone[1])), fill: col, "fill-opacity": p.aligned ? 0.28 : 0.1,
+                  stroke: col, "stroke-opacity": p.aligned ? 0.9 : 0.4, "stroke-dasharray": p.aligned ? "" : "3 2" });
+    add("text", { x: xa + 2, y: Y(p.zone[1]) - 2 }, "POI " + p.trigger + (p.aligned ? "" : " (fora do macro)") + (p.result ? " · " + p.result : ""));
+  });
+  lines.forEach(x => { add("line", { x1: pl, x2: W - pr, y1: Y(x.v), y2: Y(x.v), stroke: x.c, "stroke-dasharray": x.dash, "stroke-width": 1 });
+    add("text", { x: W - pr + 4, y: Y(x.v) + 3, fill: x.c }, x.t); });
+  cs.forEach(c => { const up = c[4] >= c[1], col = up ? "var(--buy)" : "var(--sell)", x = X(c[0]);
+    add("line", { x1: x, x2: x, y1: Y(c[2]), y2: Y(c[3]), stroke: col, "stroke-width": 0.8 });
+    add("rect", { x: x - cw * 0.35, y: Y(Math.max(c[1], c[4])), width: Math.max(0.8, cw * 0.7), height: Math.max(0.6, Math.abs(Y(c[1]) - Y(c[4]))), fill: col }); });
+  [0.1, 0.5, 0.9].forEach(f => { const c = cs[Math.floor(f * (cs.length - 1))];
+    add("text", { x: X(c[0]), y: H - 5, "text-anchor": "middle" }, new Date(c[0]).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })); });
+  return s;
+}
+function viewCharts(v) {
+  const packs = state.charts || {};
+  if (!Object.keys(packs).length) { v.append(el("p", "muted", "Os graficos aparecem a partir da proxima leitura da agencia.")); return; }
+  if (!packs[chartAsset]) chartAsset = Object.keys(packs)[0];
+  const pack = packs[chartAsset];
+  v.append(el("h3", null, "Consulta da mesa · " + chartAsset + " em 2, 5, 10 e 15 minutos"));
+  const segA = el("div", "seg"), segT = el("div", "seg");
+  Object.keys(packs).forEach(a => { const b = el("button", null, a); b.setAttribute("aria-pressed", String(a === chartAsset)); b.onclick = () => { chartAsset = a; renderTab(); }; segA.append(b); });
+  Object.keys(pack.tfs).forEach(t => { const b = el("button", null, t); b.setAttribute("aria-pressed", String(t === chartTf)); b.onclick = () => { chartTf = t; renderTab(); }; segT.append(b); });
+  if (!pack.tfs[chartTf]) chartTf = Object.keys(pack.tfs)[0];
+  const wrap = el("div", "chartwrap"); wrap.append(candleSvg(pack, chartTf));
+  v.append(segA, segT, wrap);
+  const lg = el("div", "legend");
+  [["var(--sell)", "liquidez acima (topos de 15m)"], ["var(--buy)", "liquidez abaixo (fundos de 15m)"], ["var(--muted)", "nivel ja varrido"]].forEach(([c, t]) => {
+    const sp = el("span"); const i = el("i"); i.style.background = c; sp.append(i, t); lg.append(sp); });
+  v.append(lg);
+  v.append(el("h3", null, "O que os agentes leem antes de operar"));
+  const kv = el("dl", "kv"), add = (a, b) => kv.append(el("dt", null, a), el("dd", null, b));
+  Object.keys(pack.reading).forEach(k => add("Estrutura " + k, pack.reading[k].word));
+  add("Liquidez acima", pack.liquidity.above.length ? pack.liquidity.above.map(x => fmt(x, pack.dec)).join(" · ") : "-");
+  add("Liquidez abaixo", pack.liquidity.below.length ? pack.liquidity.below.map(x => fmt(x, pack.dec)).join(" · ") : "-");
+  add("Varridas em 24h", String(pack.liquidity.swept.length));
+  v.append(kv);
+  if (pack.pois.length) {
+    v.append(el("h3", null, "POIs dos ultimos 2 dias"));
+    const r = el("div", "rows");
+    pack.pois.slice().reverse().forEach(p => {
+      const row = el("div", "row"), left = el("div");
+      left.append(el("div", null, (p.dir > 0 ? "Compra " : "Venda ") + "· gatilho " + p.trigger + " · " + when(p.entryT)));
+      left.append(el("div", "small muted num", "entrada " + fmt(p.entry, pack.dec) + " · stop " + fmt(p.stop, pack.dec) + " · alvo " + fmt(p.take, pack.dec) +
+        (p.aligned ? " · a mesa operou" : " · fora do macro 1h, a mesa nao operou")));
+      row.append(left, el("b", "num " + (p.result === "alvo" ? "pos" : p.result === "stop" ? "neg" : ""), p.result || "-")); r.append(row);
+    });
+    v.append(r);
+  }
+  v.append(el("p", "note", "Material de consulta: antes de cada ordem a mesa le estes quatro tempos e registra a leitura junto da operacao (aba Corretora). Os graficos sao da ultima leitura da agencia, que acontece a cada 2h; nao sao ao vivo."));
 }
 
 function viewMarkets(v) {

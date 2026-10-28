@@ -24,10 +24,12 @@ const M = require(path.join(__dirname, "method.js"));
 
 const FOUNDED = "2026-10-27";          // the paper desk trades from this day on
 const DEFAULTS = { capital: 5000, stopUsd: 80, maxStopsPerDay: 2, rr: 3, block: 25 };
-const MIN5 = 3e5, MIN15 = 9e5, HOUR = 36e5, DAY = 864e5;
+const MIN1 = 6e4, MIN2 = 12e4, MIN5 = 3e5, MIN15 = 9e5, HOUR = 36e5, DAY = 864e5;
+const CHART_TFS = [2, 5, 10, 15];       // minutes the agents consult before an order
 // version 2 as the robot runs it: POI on 5m, liquidity of 15m, 1h macro; costs are MT5 spread estimates
 const V2 = { htfMs: MIN15, align: "bias", macroMs: HOUR };
 const V2_1H = { htfMs: 4 * HOUR, align: "bias", macroMs: 4 * HOUR };
+const V2_M2 = { htfMs: MIN15, align: "bias", macroMs: HOUR };   // the same POI with a 2-minute trigger, run side by side
 const UA = { "User-Agent": "Mozilla/5.0 (agency-brain)" };
 
 const MARKETS = [
@@ -115,6 +117,13 @@ async function yahoo(symbol, interval, range) {
   return bars;
 }
 
+// 2-minute candles: BTC from Binance 1-minute candles, the CME futures straight from Yahoo
+async function candles2m(m, now) {
+  const raw = m.src === "binance" ? await binance(m.id, "1m", 87) : await yahoo(m.id, "2m", "60d");
+  const b = m.src === "binance" ? M.aggregate(raw, MIN2).map(({ t, o, h, l, c, v }) => ({ t, o, h, l, c, v })) : raw;
+  return b.filter(x => x.t + MIN2 <= now);
+}
+
 async function candles(m, interval) {
   if (m.src === "binance") return binance(m.id, interval, interval === "5m" ? 18 : interval === "15m" ? 6 : 18);
   return yahoo(m.id, interval, interval === "1h" ? "730d" : "60d");
@@ -161,7 +170,7 @@ function slimTrade(t, m) {
            exitT: t.exitT || null, result: t.result || null, r: t.open ? null : round(t.r, 2),
            usd: t.usd === null || t.usd === undefined ? null : round(t.usd, 2),
            open: !!t.open, openR: t.open ? round(t.openR, 2) : null, openUsd: t.open ? round(t.openUsd, 2) : null,
-           notional: round(t.notional, 0), size: t.size, dec: m.dec };
+           notional: round(t.notional, 0), size: t.size, dec: m.dec, consult: t.consult || null };
 }
 
 function deskSummary(d, byId, cfg) {
@@ -261,13 +270,59 @@ function climate(glob) {
 
 function flowWord(f) { return f > 0 ? "alta" : f < 0 ? "baixa" : "lateral"; }
 
-// the 15-minute tops and bottoms price has not cleaned yet, nearest first
+// the 15-minute tops and bottoms price has not cleaned yet, nearest first (up to k each side)
+function liquidityLevels(b5, k) {
+  const hb = M.aggregate(b5, MIN15), pv = M.pivots(hb, M.POI.htfPivot), last = b5[b5.length - 1];
+  const after = p => b5.filter(x => x.t >= hb[p.known].t + MIN15);
+  const above = pv.hi.filter(p => p.known < hb.length && p.p > last.c && after(p).every(x => x.h <= p.p)).map(p => p.p).sort((a, b) => a - b);
+  const below = pv.lo.filter(p => p.known < hb.length && p.p < last.c && after(p).every(x => x.l >= p.p)).map(p => p.p).sort((a, b) => b - a);
+  // levels cleaned in the last 24 hours: where the sweeps happened
+  const swept = [];
+  pv.hi.concat(pv.lo.map(p => Object.assign({ low: true }, p))).forEach(p => {
+    if (p.known >= hb.length) return;
+    const hit = after(p).find(x => p.low ? x.l < p.p : x.h > p.p);
+    if (hit && hit.t >= last.t - DAY) swept.push({ p: p.p, side: p.low ? "fundo" : "topo", t: hit.t });
+  });
+  return { above: above.slice(0, k), below: below.slice(0, k), swept: swept.sort((a, b) => b.t - a.t).slice(0, 6) };
+}
+
 function liquidity(b5) {
   const hb = M.aggregate(b5, MIN15), pv = M.pivots(hb, M.POI.htfPivot), last = b5[b5.length - 1];
   const after = p => b5.filter(x => x.t >= hb[p.known].t + MIN15);
   const highs = pv.hi.filter(p => p.known < hb.length && p.p > last.c && after(p).every(x => x.h <= p.p)).map(p => p.p).sort((a, b) => a - b);
   const lows = pv.lo.filter(p => p.known < hb.length && p.p < last.c && after(p).every(x => x.l >= p.p)).map(p => p.p).sort((a, b) => b - a);
   return { above: highs[0] === undefined ? null : highs[0], below: lows[0] === undefined ? null : lows[0] };
+}
+
+// what an agent reads on one chart up to time T: the structure of its last pivots
+function structureAt(bars, T) {
+  const b = bars.filter(x => x.t <= T);
+  if (b.length < 20) return { flow: 0, word: "sem dados" };
+  const pv = M.pivots(b, 2), H = pv.hi.filter(p => p.known < b.length), L = pv.lo.filter(p => p.known < b.length);
+  if (H.length < 2 || L.length < 2) return { flow: 0, word: "lateral" };
+  const hh = H[H.length - 1].p > H[H.length - 2].p, hl = L[L.length - 1].p > L[L.length - 2].p;
+  const flow = hh && hl ? 1 : !hh && !hl ? -1 : 0;
+  return { flow, word: flow > 0 ? "topos e fundos subindo" : flow < 0 ? "topos e fundos caindo" : "lateral" };
+}
+
+// the consultation the desk makes before an order: every chart of CHART_TFS up to the moment
+function consult(byTf, T) {
+  const out = {};
+  CHART_TFS.forEach(tf => { const b = byTf[tf]; out[tf + "m"] = b ? structureAt(b, T) : { flow: 0, word: "sem dados" }; });
+  return out;
+}
+
+function chartPack(m, byTf, liq, trades, now) {
+  const tfs = {};
+  CHART_TFS.forEach(tf => {
+    const b = byTf[tf];
+    if (b) tfs[tf + "m"] = b.slice(-90).map(x => [x.t, x.o, x.h, x.l, x.c]);
+  });
+  const pois = trades.filter(t => t.entryT >= now - 2 * DAY).slice(-8).map(t => ({
+    trigger: t.trigger, aligned: t.aligned, dir: t.dir, entry: t.entry, stop: t.stop, take: t.take, entryT: t.entryT, exitT: t.exitT || null,
+    result: t.result || (t.open ? "aberta" : null), zone: t.poi ? t.poi.zone : null, sweepT: t.poi ? t.poi.sweepT : null,
+    level: t.poi ? t.poi.level : null }));
+  return { asset: m.short, dec: m.dec, tfs, liquidity: liq, pois, reading: consult(byTf, now) };
 }
 
 function readMarket(m, b15, s15, study, now, b5, openTrade) {
@@ -346,15 +401,18 @@ function meeting(st, now) {
   say("sofia", ev.length ? ev.map(e => "\"" + e.title.slice(0, 80) + "\": desde a noticia " +
     e.moves.map(x => x.asset + " " + sgn(x.pct) + "%").join(", ")).join(" | ") : "Nenhum evento politico ou de juros novo nas ultimas 48h.");
   const line = x => x.short + ": macro " + flowWord(x.macro ? x.macro.flow : 0) + (x.macro && x.macro.choch ? " (CHoCH de " + x.macro.choch + ")" : "") + ", " + x.status;
+  const look = s => { const c = st.charts[s]; if (!c) return "";
+    return " Consultei os graficos: " + Object.keys(c.reading).map(k => k + " " + c.reading[k].word).join(", ") + "."; };
   if (!closed) {
     const b = mk("BTC"), g = mk("XAU");
-    if (b) say("rafa", line(b) + ".");
-    if (g) say("bia", line(g) + ".");
+    if (b) say("rafa", line(b) + "." + look("BTC"));
+    if (g) say("bia", line(g) + "." + look("XAU"));
     say("duda", st.markets.filter(x => x.desk === "duda").map(line).join("; ") + ".");
   }
   const sim = D.sim, study = D.study;
   say("kenji", "Simulacao de 60 dias, POI em 5m: " + sim.n + " trades, " + sim.winRate + "% de acerto, " + sgn(sim.expectancy) + "R por trade" +
     (sim.blocks.length ? " (bloco atual " + sim.blocks[sim.blocks.length - 1].wins + "/" + sim.blocks[sim.blocks.length - 1].n + ")" : "") +
+    ". Mesmo POI com gatilho de 2m, lado a lado: " + D.compare.sim.n + " trades, " + sgn(D.compare.sim.expectancy) + "R" +
     ". POI em 1h com liquidez de 4h, 2 anos: " + study.n + " trades, " + sgn(study.expectancy) + "R. Com alvo de 3R o equilibrio e 25% de acerto; ainda sem vantagem comprovada.");
   say("marta", "Stop de " + usd(st.config.stopUsd) + " por trade, alvo 3R (" + usd(st.config.stopUsd * 3) + "), risco diario de " +
     usd(st.profile.dailyRiskUsd) + " = " + fmt(st.profile.dailyRiskPct, 1) + "% de " + usd(st.config.capital) + " (" + st.profile.label + "). " +
@@ -404,6 +462,7 @@ async function main() {
   const cfg = readConfig(arg("--config"));
   const now = Date.now(), founded = Date.parse(FOUNDED + "T00:00:00Z"), errors = [];
   const byId = {}, live = [], sim = [], study = [], labRuns = { v1: [], v2: [], v2macro: [] }, markets = [], series15 = {};
+  const live2 = [], sim2 = [], charts = {}, consults = {};
 
   for (const m of MARKETS) {
     try {
@@ -427,6 +486,23 @@ async function main() {
         study.push(fr);
         one = M.desk([fr], Object.assign({}, cfg));
         openTrade = M.desk([mine], Object.assign({}, cfg)).open[0] || null;
+        // the 2-minute trigger, side by side, and the charts the agents consult
+        const b2 = await candles2m(m, now);
+        const v2m2 = M.poiSetups(b2, Object.assign({ fee: m.fee }, V2_M2));
+        sim2.push(run(b2, v2m2.trades));
+        live2.push(run(b2, v2m2.trades.filter(t => b2[t.entryIdx].t >= founded)));
+        const byTf = { 2: b2, 5: b5, 10: M.aggregate(b5, 2 * MIN5).filter(x => x.t + 2 * MIN5 <= now).map(({ t, o, h, l, c, v }) => ({ t, o, h, l, c, v })), 15: b15 };
+        consults[m.short] = byTf;
+        // every POI of the last days on both triggers, marked when the 1h macro let the desk take it
+        const allPois = (bars, setups, taken, trig) => {
+          const ok = new Set(taken.map(t => t.entryIdx + ":" + t.dir));
+          return M.desk([run(bars, setups.trades)], Object.assign({}, cfg, { maxStopsPerDay: 99 })).trades
+            .map(t => Object.assign(t, { trigger: trig, aligned: ok.has(t.entryIdx + ":" + t.dir) }));
+        };
+        const recent = allPois(b5, M.poiSetups(b5, { fee: m.fee, htfMs: MIN15 }), v2.trades, "5m")
+          .concat(allPois(b2, M.poiSetups(b2, { fee: m.fee, htfMs: MIN15 }), v2m2.trades, "2m"))
+          .sort((x, y) => x.entryT - y.entryT);
+        charts[m.short] = chartPack(m, byTf, liquidityLevels(b5, 3), recent, now);
       }
       markets.push(readMarket(m, b15, s15, one, now, b5, openTrade));
     } catch (e) { errors.push(m.short + ": " + e.message); }
@@ -438,6 +514,10 @@ async function main() {
 
   const deskCfg = Object.assign({}, cfg);
   const L = M.desk(live, deskCfg), S = M.desk(sim, deskCfg), T = M.desk(study, deskCfg);
+  const L2 = M.desk(live2, deskCfg), S2 = M.desk(sim2, deskCfg);
+  // every order of the desk carries the consultation of the 2, 5, 10 and 15-minute charts made before it
+  const withConsult = d => d.trades.forEach(t => { const byTf = consults[t.short]; if (byTf) t.consult = consult(byTf, t.entryT - 1); });
+  withConsult(L); withConsult(L2);
   const today = M.dayOf(now);
   const stopsToday = L.trades.filter(t => !t.open && t.result === "stop" && M.dayOf(t.exitT) === today).length;
   const tradesToday = L.trades.filter(t => M.dayOf(t.entryT) === today).length;
@@ -454,13 +534,17 @@ async function main() {
       today: { day: today, stops: stopsToday, trades: tradesToday, closed: closedToday,
                reopenAt: closedToday ? Date.parse(today + "T00:00:00Z") + DAY : null },
       live: deskSummary(L, byId, cfg), sim: deskSummary(S, byId, cfg), study: deskSummary(T, byId, cfg),
-      method: "v2", assets: MARKETS.filter(m => m.trade).map(m => m.short)
+      method: "v2", assets: MARKETS.filter(m => m.trade).map(m => m.short),
+      compare: { trigger: "2m", live: deskSummary(L2, byId, cfg), sim: deskSummary(S2, byId, cfg) }
     },
+    charts,
     lab, people: PEOPLE
   };
   st.desk.sim.closed = st.desk.sim.closed.slice(0, 15);
   st.desk.study.closed = st.desk.study.closed.slice(0, 10);
   st.desk.study.curve = st.desk.study.curve.slice(-80);
+  st.desk.compare.sim.closed = st.desk.compare.sim.closed.slice(0, 10);
+  st.desk.compare.sim.curve = st.desk.compare.sim.curve.slice(-80);
   st.climate = climate(glob);
   st.research = { events: reactions(headlines, series15), ranking: rank(markets) };
   st.meeting = meeting(st, now);
