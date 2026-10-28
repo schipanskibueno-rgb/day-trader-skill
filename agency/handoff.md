@@ -32,7 +32,7 @@ Um sistema de trade que:
 
 Repositorio: `schipanskibueno-rgb/day-trader-skill`, branch
 `claude/practical-keller-hauv05` (antes `ccr-3497652c-mvjbc0`; sem PR aberto). Testes:
-`python3 -m unittest discover -s tests` (343 passando). O teste
+`python3 -m unittest discover -s tests` (345 passando). O teste
 `tests/test_repo.py` limita as pastas da raiz: arquivos novos vao em
 `agency/`, `docs/` ou `tests/`.
 
@@ -114,6 +114,31 @@ Mercados: BTC pela Binance; ouro e moedas pelos **futuros CME no Yahoo**
   mensagem do MetaEditor.
 - Diferenca a lembrar: o EA usa volume de ticks da corretora; a agencia usa
   volume dos futuros CME.
+
+## Versao 2: POI depois da limpeza de liquidez (2026-10-28)
+
+Vem de uma aula ao vivo do curso (video de 64 min que o usuario mandou). Em
+`agency/method.js`, `poiSetups()`:
+
+- Liquidez: topos e fundos (pivos k=3) do grafico maior (15m para gatilho 5m).
+- Varrida: um candle passa do nivel. Se o preco seguir mais de 1,5 ATR do
+  grafico maior, e rompimento, nao varrida.
+- POI: depois da varrida, sobe, puxa para baixo quebrando um fundinho da
+  subida, faz fundo mais alto e perto (ate 1 ATR maior) da varrida e fecha
+  acima do topo de onde a puxada comecou. Zona = ultimo candle de baixa da
+  puxada ate o fundo dela.
+- Entrada: ordem limitada no topo da zona por 24 candles; stop abaixo da
+  puxada (+0,1 ATR); alvo 3R. Se bater o alvo ou o stop antes, cancela.
+- Vendas sao o espelho (roda no grafico invertido).
+
+`node agency/lab-poi.js --out x.json` compara v1 e v2 (resultado salvo em
+`agency/lab-poi.json`). Com custo estimado do MT5, gatilho 5m: v1 23 trades
+-0,75R; v2 93 trades +0,14R (BTC 75 trades +0,23R, ouro 15 trades -0,28R,
+moedas so 60 dias e quase sem trades); v2 com filtro macro H1 21 trades
++0,57R (BTC 19). Em 1h/4h (2 anos) a v2 perde para a v1 (-0,13R contra
++0,29R). Com a taxa da Binance (0,1% por lado) o BTC em 5m nao tem trade
+nenhum: o stop e menor que a taxa. Nada disso e prova: e um ano de um ativo.
+O robo do MT5 ainda e a v1.
 
 ## Proximos passos sugeridos
 

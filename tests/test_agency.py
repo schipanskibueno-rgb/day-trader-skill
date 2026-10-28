@@ -54,6 +54,20 @@ const full = M.setups(series, { macroMs: 36e5 }), cut = M.setups(series.slice(0,
 const early = full.trades.filter(x => x.entryIdx < 1999).map(x => x.i + ":" + x.entry);
 out.causal = [JSON.stringify(early) === JSON.stringify(cut.trades.filter(x => x.entryIdx < 1999).map(x => x.i + ":" + x.entry)), full.regions.length > 0];
 
+// version 2 (POI after a liquidity sweep): causal, sells mirror buys, and a limit fill never counts the target in its own candle
+const walk = []; let w = 100;
+for (let i = 0; i < 20000; i++) { const o = w; w = Math.max(1, w + (rnd() - 0.5) * 0.6 + Math.sin(i / 300) * 0.05);
+  walk.push(bar(i * 3e5, o, Math.max(o, w) + rnd() * 0.2, Math.min(o, w) - rnd() * 0.2, w, 100 + rnd() * 300)); }
+const pf = M.poiSetups(walk), pc = M.poiSetups(walk.slice(0, 12000)), key = x => x.entryIdx + ":" + x.dir + ":" + x.entry.toFixed(6);
+const pm = M.poiSetups(M.mirror(walk));
+out.poi = [pf.trades.length > 0,
+           JSON.stringify(pf.trades.filter(x => x.entryIdx < 11990).map(key)) === JSON.stringify(pc.trades.filter(x => x.entryIdx < 11990).map(key)),
+           pf.trades.filter(x => x.dir < 0).length === pm.trades.filter(x => x.dir > 0).length,
+           pf.trades.every(x => x.dir * (x.take - x.entry) > 0 && Math.abs(x.take - x.entry - 3 * x.dir * x.risk) < 1e-9 && x.dir * (x.entry - x.stop) > 0)];
+const lim = [bar(0, 100, 100, 100, 100, 1), bar(H, 101, 104, 99.8, 103.5, 1), bar(2 * H, 103, 103.5, 102, 103, 1)];
+out.limit = [M.resolve(lim, { i: 0, entryIdx: 1, dir: 1, entry: 100, stop: 99, take: 103, risk: 1, limit: true }, 0).exitIdx,
+             M.resolve(lim, { i: 0, entryIdx: 1, dir: 1, entry: 100, stop: 99, take: 103, risk: 1 }, 0).exitIdx];
+
 out.tone = [B.tone("Ibovespa dispara e bate recorde"), B.tone("Bitcoin despenca com medo de recessao"), B.tone("Mercado aguarda decisao do Fed")];
 out.tags = B.tagsOf("Lula reeleito: dolar dispara", "Politica");
 out.climate = [B.climate([{id: "^GSPC", chg5d: 0.02}, {id: "^VIX", price: 14}, {id: "DX-Y.NYB", chg5d: -0.01}]).label,
@@ -97,6 +111,16 @@ class Agency(unittest.TestCase):
         same, has_regions = self.out["causal"]
         self.assertTrue(has_regions)
         self.assertTrue(same)
+
+    def test_poi_version_is_causal_and_symmetric(self):
+        has_trades, causal, mirror, levels = self.out["poi"]
+        self.assertTrue(has_trades)
+        self.assertTrue(causal)
+        self.assertTrue(mirror)
+        self.assertTrue(levels)                         # stop on the far side, target exactly 3R
+
+    def test_limit_fill_does_not_take_the_target_in_its_own_candle(self):
+        self.assertEqual(self.out["limit"], [2, 1])
 
     def test_brain_helpers(self):
         self.assertEqual(self.out["tone"], [1, -1, 0])

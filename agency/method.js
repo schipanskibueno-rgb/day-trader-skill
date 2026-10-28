@@ -215,10 +215,125 @@
     return { trades: out, regions: regions, macro: ms, hours: hb, lastClosedHour: lastClosedHour, atr: a, volSma: vs };
   }
 
+  // ------------------------------------------------------------ version 2: POI after a liquidity sweep
+  //
+  // The entry the course teaches in its live sessions, as rules:
+  //   LIQUIDITY: tops and bottoms of the higher chart (15m for a 5m trigger)
+  //   rest orders beyond them. A candle that trades past one "cleans" it.
+  //   POI: after the sweep, the trigger chart rises (the "1, 2, 3"), pulls
+  //   down breaking a small bottom of that rise but holding a bottom higher
+  //   than the sweep, close to it, and then pulls up through the top the
+  //   pull-down started from. The pull-down is the zone: the last down candle
+  //   in it, from its body top to the bottom of the pull-down.
+  //   ENTRY: a limit order at the top of the zone while the move is young; the
+  //   stop goes below the pull-down; target 3R. If price reaches the target
+  //   or the stop before filling, the trade is gone.
+  // Sells are the mirror image. Everything is causal like the rest of the file.
+
+  var POI = {
+    htfMs: 9e5, htfPivot: 3, ltfPivot: 2,
+    huntLife: 36,          // the POI must confirm within 36 candles of the sweep (3h on 5m)
+    maxRunHtfAtr: 1.5,     // a sweep that runs more than 1.5 higher-chart ATR is a breakdown, not a sweep
+    nearHtfAtr: 1.0,       // the higher bottom sits within 1 higher-chart ATR of the sweep low
+    entryLife: 24,         // the limit order waits 24 candles
+    stopBufferPoi: 0.1, breakMinor: true, align: "none"
+  };
+
+  function mirror(b) {
+    return b.map(function (x) { return { t: x.t, o: -x.o, h: -x.l, l: -x.h, c: -x.c, v: x.v }; });
+  }
+
+  // buys only; sells run on the mirrored chart
+  function poiBuys(b, o, gateAt) {
+    var a = atr(b, o.atrN), hb = aggregate(b, o.htfMs), ha = atr(hb, o.atrN);
+    var hp = pivots(hb, o.htfPivot), lp = pivots(b, o.ltfPivot);
+    var htfAt = new Array(b.length).fill(-1), cur = -1;
+    hb.forEach(function (h, k) { htfAt[h.last] = k; });
+    for (var i = 0; i < b.length; i++) { if (htfAt[i] >= 0) cur = htfAt[i]; htfAt[i] = cur; }
+    // higher-chart bottoms become liquidity once confirmed, at the base candle that closes their confirming hour
+    var levels = hp.lo.filter(function (p) { return p.known < hb.length; })
+      .map(function (p) { return { p: p.p, from: hb[p.known].last + 1 }; }).sort(function (x, y) { return x.from - y.from; });
+    var active = [], next = 0, out = [], seen = {};
+    for (i = 1; i < b.length; i++) {
+      while (next < levels.length && levels[next].from <= i) active.push(levels[next++]);
+      var swept = active.filter(function (z) { return b[i].l < z.p; });
+      if (!swept.length) continue;
+      active = active.filter(function (z) { return b[i].l >= z.p; });
+      var lvl = Math.min.apply(null, swept.map(function (z) { return z.p; }));
+      var t = hunt(b, a, ha, htfAt, lp, o, i, lvl, gateAt);
+      if (t && !seen[t.key]) { seen[t.key] = true; out.push(t); }
+    }
+    return out;
+  }
+
+  function hunt(b, a, ha, htfAt, lp, o, s, lvl, gateAt) {
+    var hA = htfAt[s] >= 0 ? ha[htfAt[s]] : null;
+    if (!hA) return null;
+    var ext = b[s].l, extIdx = s;
+    for (var j = s + 1; j < b.length && j <= s + o.huntLife; j++) {
+      if (b[j].l < ext) { ext = b[j].l; extIdx = j; }
+      if (ext < lvl - o.maxRunHtfAtr * hA) return null;                 // not a sweep: price kept going
+      var lows = lp.lo.filter(function (p) { return p.known <= j && p.i > extIdx; });
+      if (!lows.length) continue;
+      var PL = lows[lows.length - 1];
+      if (PL.p <= ext || PL.p - ext > o.nearHtfAtr * hA) continue;     // a higher bottom, close to the sweep
+      var highs = lp.hi.filter(function (p) { return p.known <= j && p.i > extIdx && p.i < PL.i; });
+      if (!highs.length) continue;
+      var PH = highs[highs.length - 1];
+      if (o.breakMinor) {
+        var minor = lows.filter(function (p) { return p.i < PH.i; });
+        if (!minor.length || PL.p >= minor[minor.length - 1].p) continue;   // the pull-down broke a small bottom
+      }
+      if (b[j].c <= PH.p) continue;                                     // pulls up through the top: confirmed
+      if (gateAt && gateAt(j) !== 1) return null;
+      var ob = null;
+      for (var k = PL.i; k >= PH.i && ob === null; k--) if (b[k].c < b[k].o) ob = k;
+      var zoneHi = ob !== null ? Math.max(b[ob].o, b[PL.i].c) : b[PL.i].h;
+      var stop = PL.p - o.stopBufferPoi * a[j], plan = zoneHi - stop;
+      if (!(plan > 0) || plan < o.minRiskAtr * a[j] || plan > o.maxRiskAtr * a[j]) return null;
+      if (2 * o.fee * Math.abs(zoneHi) > o.maxFeeR * plan) return null;
+      for (k = j + 1; k < b.length && k <= j + o.entryLife; k++) {
+        if (b[k].h >= zoneHi + o.rr * plan) return null;                // ran away before filling
+        if (b[k].l <= zoneHi) {
+          var entry = Math.min(b[k].o, zoneHi);
+          if (entry <= stop) return null;
+          var risk = entry - stop;
+          return { key: PL.i + ":" + j, i: j, entryIdx: k, dir: 1, entry: entry, stop: stop, take: entry + o.rr * risk, risk: risk,
+                   limit: true, poi: { sweepT: b[s].t, level: lvl, low: ext, pullLow: PL.p, top: PH.p, zone: [PL.p, zoneHi] } };
+        }
+      }
+      return null;
+    }
+    return null;
+  }
+
+  function flipTrade(t) {
+    return Object.assign({}, t, { dir: -1, entry: -t.entry, stop: -t.stop, take: -t.take,
+      poi: { sweepT: t.poi.sweepT, level: -t.poi.level, high: -t.poi.low, pullHigh: -t.poi.pullLow, bottom: -t.poi.top,
+             zone: [-t.poi.zone[1], -t.poi.zone[0]] } });
+  }
+
+  // same shape as setups(): { trades }, so the desk and the blocks of 25 work unchanged
+  function poiSetups(b, opts) {
+    var o = Object.assign({}, P, POI, opts || {});
+    var gate = null;
+    if (o.align !== "none") {
+      var hb = aggregate(b, o.macroMs), ms = macroStates(hb), last = new Array(b.length).fill(-1), c = -1;
+      hb.forEach(function (h, k) { last[h.last] = k; });
+      for (var i = 0; i < b.length; i++) { if (last[i] >= 0) c = last[i]; last[i] = c; }
+      gate = function (j) { var m = last[j] >= 0 ? ms[last[j]] : null; return m ? (o.align === "flow" ? m.flow : m.bias) : 0; };
+    }
+    var buys = poiBuys(b, o, gate);
+    var sells = poiBuys(mirror(b), o, gate ? function (j) { return -gate(j); } : null).map(flipTrade);
+    var trades = buys.concat(sells).sort(function (x, y) { return x.entryIdx - y.entryIdx; });
+    return { trades: trades };
+  }
+
   // stop or target, whichever is hit first (both in one candle: the stop). No time exit.
   function resolve(b, t, fee) {
     for (var j = t.entryIdx; j < b.length; j++) {
       var x = b[j], hitStop = t.dir > 0 ? x.l <= t.stop : x.h >= t.stop, hitTake = t.dir > 0 ? x.h >= t.take : x.l <= t.take;
+      if (t.limit && j === t.entryIdx) hitTake = false;                // a limit fill: the high may have come before it
       if (hitStop || hitTake) {
         var exit = hitStop ? t.stop : t.take;
         var r = t.dir * (exit - t.entry) / t.risk - fee * (t.entry + exit) / t.risk;
@@ -294,7 +409,7 @@
   }
 
   var api = { P: P, atr: atr, sma: sma, aggregate: aggregate, pivots: pivots, macroStates: macroStates, profile: profile,
-              findRegions: findRegions, setups: setups, resolve: resolve, desk: desk, snapshot: snapshot, dayOf: dayOf };
+              findRegions: findRegions, setups: setups, POI: POI, poiSetups: poiSetups, mirror: mirror, resolve: resolve, desk: desk, snapshot: snapshot, dayOf: dayOf };
   root.Method = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : this);
