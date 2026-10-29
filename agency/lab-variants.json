@@ -1,5 +1,5 @@
 {
- "at": "2026-10-29T00:25:36.827Z",
+ "at": "2026-10-29T19:29:39.424Z",
  "desk": {
   "stopUsd": 50,
   "capital": 5000,
@@ -8,19 +8,19 @@
  },
  "results": {
   "base": {
-   "n": 94,
-   "winRate": 32,
-   "expR": 0.13,
-   "usd": 615,
+   "n": 96,
+   "winRate": 31,
+   "expR": 0.11,
+   "usd": 505,
    "maxDD": 605,
    "byMarket": {
     "BTC": {
-     "n": 75,
-     "exp": 0.23
+     "n": 76,
+     "exp": 0.21
     },
     "XAU": {
-     "n": 16,
-     "exp": -0.33
+     "n": 17,
+     "exp": -0.37
     },
     "EUR": {
      "n": 1,
@@ -37,19 +37,19 @@
    }
   },
   "sweep": {
-   "n": 144,
-   "winRate": 24,
-   "expR": -0.18,
-   "usd": -1289,
-   "maxDD": 1407,
+   "n": 145,
+   "winRate": 23,
+   "expR": -0.19,
+   "usd": -1349,
+   "maxDD": 1355,
    "byMarket": {
     "BTC": {
-     "n": 118,
-     "exp": -0.15
+     "n": 119,
+     "exp": -0.16
     },
     "XAU": {
-     "n": 18,
-     "exp": 0.06
+     "n": 17,
+     "exp": 0.13
     },
     "AUD": {
      "n": 1,
@@ -60,8 +60,8 @@
      "exp": -1.1
     },
     "EUR": {
-     "n": 3,
-     "exp": -1.15
+     "n": 4,
+     "exp": -1.14
     },
     "GBP": {
      "n": 1,
@@ -116,19 +116,48 @@
    }
   },
   "wyckoffRange": {
-   "n": 94,
-   "winRate": 32,
-   "expR": 0.13,
-   "usd": 615,
+   "n": 96,
+   "winRate": 31,
+   "expR": 0.11,
+   "usd": 505,
    "maxDD": 605,
    "byMarket": {
     "BTC": {
-     "n": 75,
-     "exp": 0.23
+     "n": 76,
+     "exp": 0.21
     },
     "XAU": {
-     "n": 16,
-     "exp": -0.33
+     "n": 17,
+     "exp": -0.37
+    },
+    "EUR": {
+     "n": 1,
+     "exp": -1.11
+    },
+    "JPY": {
+     "n": 1,
+     "exp": -1.1
+    },
+    "GBP": {
+     "n": 1,
+     "exp": 2.87
+    }
+   }
+  },
+  "wyckoffContext": {
+   "n": 83,
+   "winRate": 34,
+   "expR": 0.2,
+   "usd": 844,
+   "maxDD": 582,
+   "byMarket": {
+    "BTC": {
+     "n": 65,
+     "exp": 0.37
+    },
+    "XAU": {
+     "n": 15,
+     "exp": -0.54
     },
     "EUR": {
      "n": 1,
@@ -145,15 +174,15 @@
    }
   },
   "base+macro1h": {
-   "n": 21,
-   "winRate": 43,
-   "expR": 0.57,
-   "usd": 604,
-   "maxDD": 370,
+   "n": 22,
+   "winRate": 41,
+   "expR": 0.5,
+   "usd": 545,
+   "maxDD": 428,
    "byMarket": {
     "BTC": {
-     "n": 19,
-     "exp": 0.75
+     "n": 20,
+     "exp": 0.65
     },
     "XAU": {
      "n": 2,
@@ -162,15 +191,15 @@
    }
   },
   "sweep+macro1h": {
-   "n": 39,
-   "winRate": 26,
-   "expR": -0.1,
-   "usd": -195,
-   "maxDD": 672,
+   "n": 40,
+   "winRate": 25,
+   "expR": -0.13,
+   "usd": -251,
+   "maxDD": 728,
    "byMarket": {
     "BTC": {
-     "n": 32,
-     "exp": -0.01
+     "n": 33,
+     "exp": -0.04
     },
     "XAU": {
      "n": 4,
@@ -225,19 +254,36 @@
    }
   },
   "wyckoffRange+macro1h": {
-   "n": 21,
-   "winRate": 43,
-   "expR": 0.57,
-   "usd": 604,
-   "maxDD": 370,
+   "n": 22,
+   "winRate": 41,
+   "expR": 0.5,
+   "usd": 545,
+   "maxDD": 428,
    "byMarket": {
     "BTC": {
-     "n": 19,
-     "exp": 0.75
+     "n": 20,
+     "exp": 0.65
     },
     "XAU": {
      "n": 2,
      "exp": -1.05
+    }
+   }
+  },
+  "wyckoffContext+macro1h": {
+   "n": 18,
+   "winRate": 50,
+   "expR": 0.85,
+   "usd": 764,
+   "maxDD": 320,
+   "byMarket": {
+    "BTC": {
+     "n": 17,
+     "exp": 0.96
+    },
+    "XAU": {
+     "n": 1,
+     "exp": -1.07
     }
    }
   }

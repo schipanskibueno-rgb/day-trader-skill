@@ -241,7 +241,11 @@
     sweepVolMax: 0,        // > 0: Wyckoff spring filter, the sweep candle trades less than this many times the average volume
     // Wyckoff only inside a sideways structure: when the sweep happens at the edge of a trading range of the
     // higher chart, it must look like a spring (less volume than average); outside a range the POI is unchanged
-    wyckoffRange: false, rangeBars: 32, rangeAtr: 4, rangeDrift: 0.5, rangeEdgeAtr: 0.5, springVol: 1
+    wyckoffRange: false, rangeBars: 32, rangeAtr: 4, rangeDrift: 0.5, rangeEdgeAtr: 0.5, springVol: 1,
+    // Wyckoff context (study of 2026-10-29): inside a sideways structure of the higher chart (ctxBars candles within
+    // ctxAtr ATR), a buy needs the range to come after a fall (accumulation) and a sell after a rise (distribution),
+    // the move into it larger than ctxMove times the range height; a range with no such move is "no interest": no trade
+    wyckoffContext: false, ctxBars: 48, ctxAtr: 6, ctxMove: 1, ctxLook: 48
   };
 
   // a sideways structure (trading range) on the last n candles of a chart ending at q: narrow and going nowhere
@@ -281,6 +285,14 @@
       if (o.wyckoffRange && vs[i - 1] && b[i].v > 0) {
         var q = htfAt[i - 1], tr = q >= 0 ? tradingRange(hb, ha, q, o) : null;
         if (tr && lvl - tr.lo <= o.rangeEdgeAtr * ha[q] && b[i].v >= o.springVol * vs[i - 1]) continue;
+      }
+      if (o.wyckoffContext) {
+        var q2 = htfAt[i - 1], o2 = Object.assign({}, o, { rangeBars: o.ctxBars, rangeAtr: o.ctxAtr });
+        var tr2 = q2 >= 0 ? tradingRange(hb, ha, q2, o2) : null;
+        if (tr2) {
+          var q0 = q2 - o.ctxBars + 1, pre = Math.max(0, q0 - o.ctxLook);
+          if ((hb[q0].o - hb[pre].o) / ((tr2.hi - tr2.lo) || 1) > -o.ctxMove) continue;   // buys: the range must follow a fall
+        }
       }
       var t = hunt(b, a, ha, htfAt, lp, o, i, lvl, gateAt);
       if (t && !seen[t.key]) { seen[t.key] = true; out.push(t); }

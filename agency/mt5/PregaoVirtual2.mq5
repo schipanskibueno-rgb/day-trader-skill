@@ -20,7 +20,7 @@
 //| Sells are the mirror image. DEMO accounts only by default.       |
 //+------------------------------------------------------------------+
 #property copyright "Pregao Virtual"
-#property version   "2.20"
+#property version   "2.30"
 #property description "Versao 2 da agencia Pregao Virtual: POI no M5 depois de limpar a liquidez do M15, alinhado ao macro H1. Stop fixo, alvo 3R, maximo de 2 stops por dia. So conta demo por padrao."
 
 #include <Trade\Trade.mqh>
@@ -49,12 +49,12 @@ input bool   InpFollowAgency = true;     // A agencia decide: so operar dentro d
 input string InpAgencyKey    = "";       // Chave da agencia (o seu filho passa; sem ela o robo nao opera)
 input string InpCmdTopic     = "pregao-virtual-a224d58b32c0-cmd"; // Canal de ordens da agencia
 input int    InpPollSeconds  = 60;       // Ler as ordens da agencia a cada (segundos)
-input bool   InpWyckoffRange = true;     // Wyckoff so em lateralizacao: varredura na borda exige volume baixo (spring)
-input int    InpRangeBars    = 32;       // Candles M15 da lateralizacao (8 horas)
-input double InpRangeAtr     = 4.0;      // Altura maxima da lateralizacao (ATR do M15)
+input bool   InpWyckoffContext = true;   // Wyckoff em lateralizacao: compra so apos queda (acumulacao), venda so apos alta (distribuicao)
+input int    InpRangeBars    = 48;       // Candles M15 da lateralizacao (12 horas)
+input double InpRangeAtr     = 6.0;      // Altura maxima da lateralizacao (ATR do M15)
 input double InpRangeDrift   = 0.5;      // Deslocamento maximo dentro da lateralizacao (fracao da altura)
-input double InpRangeEdgeAtr = 0.5;      // Varredura perto da borda (ATR do M15)
-input double InpSpringVol    = 1.0;      // Volume do spring menor que (x media)
+input double InpCtxMove      = 1.0;      // Queda/alta antes da faixa (alturas da faixa) para ter contexto
+input int    InpCtxLook      = 48;       // Candles M15 olhados antes da faixa
 
 #define ATR_N    14
 #define VOL_N    20
@@ -215,14 +215,14 @@ int MacroBias(const string sym)
 
 //------------------------------------------------------------------ Wyckoff, kept in reserve
 
-// a sideways structure on the M15 candles ending at q: narrow and going nowhere; fills its bottom
-bool TradingRange(const MqlRates &h[], const double &ha[], const int q, double &lo)
+// a sideways structure on the M15 candles ending at q: narrow and going nowhere; fills its height
+bool TradingRange(const MqlRates &h[], const double &ha[], const int q, double &height)
   {
    if(q < InpRangeBars || ha[q] <= 0) return false;
-   double hi = -DBL_MAX;
-   lo = DBL_MAX;
+   double hi = -DBL_MAX, lo = DBL_MAX;
    for(int k = q - InpRangeBars + 1; k <= q; k++) { hi = MathMax(hi, h[k].high); lo = MathMin(lo, h[k].low); }
-   double height = hi - lo, drift = MathAbs(h[q].close - h[q - InpRangeBars + 1].open);
+   height = hi - lo;
+   double drift = MathAbs(h[q].close - h[q - InpRangeBars + 1].open);
    return height <= InpRangeAtr * ha[q] && drift <= InpRangeDrift * height;
   }
 
@@ -309,10 +309,14 @@ bool FindPoi(const MqlRates &b[], const int n, const MqlRates &h[], const int nh
          if(b[i].low < lp[z]) { alive[z] = false; swept = true; lvl = MathMin(lvl, lp[z]); }
         }
       if(!swept || i < last - InpHuntLife || q < ATR_N - 1) continue;
-      // Wyckoff only at the bottom edge of a sideways structure: the sweep must be a spring (low volume)
-      double rlo;
-      if(InpWyckoffRange && vs[i - 1] > 0 && b[i].tick_volume > 0 && qPrev >= 0 && TradingRange(h, ha, qPrev, rlo) &&
-         lvl - rlo <= InpRangeEdgeAtr * ha[qPrev] && (double)b[i].tick_volume >= InpSpringVol * vs[i - 1]) continue;
+      // Wyckoff only inside a sideways structure: a buy needs the range to come after a fall (accumulation);
+      // a range with no such move is a market without interest, so no trade (sells run on the mirrored chart)
+      double rh;
+      if(InpWyckoffContext && qPrev >= 0 && TradingRange(h, ha, qPrev, rh))
+        {
+         int q0 = qPrev - InpRangeBars + 1, pre = MathMax(0, q0 - InpCtxLook);
+         if((h[q0].open - h[pre].open) / (rh > 0 ? rh : 1) > -InpCtxMove) continue;
+        }
       sweeps++;
       if(Hunt(b, n, a, pHi, pLo, i, lvl, ha[q], out)) return true;
      }

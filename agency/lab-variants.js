@@ -8,6 +8,7 @@
  *   volume    base + Wyckoff spring filter: the sweep candle trades less than its average volume
  *   both      sweep stop + volume filter
  *   wyckoffRange  base, plus the spring volume rule only when the sweep is at the edge of a sideways 15m structure
+ *   wyckoffContext  inside a sideways 15m structure (12h, 6 ATR), buy only after a fall and sell only after a rise
  * Each with and without the 1h macro filter. 5-minute trigger, 15-minute liquidity:
  * one year of BTC (Binance) and 60 days of gold and currency futures (Yahoo).
  */
@@ -25,7 +26,7 @@ const MARKETS = [
   { id: "6J=F", short: "JPY", src: "yahoo", fee: 0.00003 },
   { id: "6A=F", short: "AUD", src: "yahoo", fee: 0.00003 }];
 const VARIANTS = { base: {}, sweep: { stopAt: "sweep" }, volume: { sweepVolMax: 1 }, both: { stopAt: "sweep", sweepVolMax: 1 },
-  wyckoffRange: { wyckoffRange: true } };
+  wyckoffRange: { wyckoffRange: true }, wyckoffContext: { wyckoffContext: true } };
 const DESK = { stopUsd: 50, capital: 5000, maxStopsPerDay: 2, block: 25 };
 
 async function getJSON(url) {

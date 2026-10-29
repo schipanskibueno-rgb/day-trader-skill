@@ -36,9 +36,9 @@ const DEFAULTS = { capital: 5000, stopUsd: 50, maxStopsPerDay: 2, rr: 3, block: 
 const MIN1 = 6e4, MIN2 = 12e4, MIN5 = 3e5, MIN15 = 9e5, HOUR = 36e5, DAY = 864e5;
 const CHART_TFS = [2, 5, 10, 15];       // minutes the agents consult before an order
 // version 2 as the robot runs it: POI on 5m, liquidity of 15m, 1h macro; costs are MT5 spread estimates
-const V2 = { htfMs: MIN15, align: "bias", macroMs: HOUR, wyckoffRange: true };
-const V2_1H = { htfMs: 4 * HOUR, align: "bias", macroMs: 4 * HOUR, wyckoffRange: true };
-const V2_M2 = { htfMs: MIN15, align: "bias", macroMs: HOUR, wyckoffRange: true };   // the same POI with a 2-minute trigger, run side by side
+const V2 = { htfMs: MIN15, align: "bias", macroMs: HOUR, wyckoffContext: true };
+const V2_1H = { htfMs: 4 * HOUR, align: "bias", macroMs: 4 * HOUR, wyckoffContext: true };
+const V2_M2 = { htfMs: MIN15, align: "bias", macroMs: HOUR, wyckoffContext: true };   // the same POI with a 2-minute trigger, run side by side
 const UA = { "User-Agent": "Mozilla/5.0 (agency-brain)" };
 
 const MARKETS = [
@@ -378,11 +378,14 @@ const radarWord = r => r && r.radar ? " (Radar: " + r.radar.code + " " + r.radar
 // Wyckoff is kept in reserve: it only speaks when the 15-minute chart builds a sideways structure
 function wyckoffNow(b15) {
   if (!b15 || b15.length < 60) return null;
-  const o = Object.assign({}, M.P, M.POI), tr = M.tradingRange(b15, M.atr(b15, o.atrN), b15.length - 1, o);
+  const o = Object.assign({}, M.P, M.POI), oc = Object.assign({}, o, { rangeBars: o.ctxBars, rangeAtr: o.ctxAtr });
+  const a15 = M.atr(b15, o.atrN), q = b15.length - 1, tr = M.tradingRange(b15, a15, q, oc);
   if (!tr) return null;
-  const last = b15[b15.length - 1].c, pos = (last - tr.lo) / ((tr.hi - tr.lo) || 1);
-  return { hi: tr.hi, lo: tr.lo, from: tr.from, pos: round(pos, 2),
-           note: "estrutura lateral de " + (o.rangeBars * 15 / 60) + "h: uma varredura na borda so vale como spring (abaixo) ou upthrust (acima) com volume abaixo da media" };
+  const last = b15[q].c, pos = (last - tr.lo) / ((tr.hi - tr.lo) || 1);
+  const q0 = q - o.ctxBars + 1, pre = Math.max(0, q0 - o.ctxLook), move = (b15[q0].o - b15[pre].o) / ((tr.hi - tr.lo) || 1);
+  const ctx = move <= -o.ctxMove ? "acumulacao" : move >= o.ctxMove ? "distribuicao" : "sem interesse";
+  return { hi: tr.hi, lo: tr.lo, from: tr.from, pos: round(pos, 2), ctx,
+           note: "estrutura lateral: so compra se veio depois de queda (acumulacao) e so vende se veio depois de alta (distribuicao); sem esse contexto, nao opera" };
 }
 
 function chartPack(m, byTf, liq, trades, now) {
@@ -481,7 +484,8 @@ function meeting(st, now) {
   if (!closed) {
     const b = mk("BTC"), g = mk("XAU");
     const wy = s => { const c = st.charts[s], w = c && c.wyckoff; return w ? " Wyckoff: lateralizacao entre " + px(mk(s), w.lo) + " e " + px(mk(s), w.hi) +
-      " desde " + new Date(w.from).toISOString().slice(11, 16) + " UTC; spring ou upthrust so com volume baixo." : ""; };
+      " desde " + new Date(w.from).toISOString().slice(11, 16) + " UTC, contexto de " + w.ctx +
+      (w.ctx === "acumulacao" ? ": so compras na faixa." : w.ctx === "distribuicao" ? ": so vendas na faixa." : ": nao operar dentro dela.") : ""; };
     if (b) say("rafa", line(b) + "." + look("BTC") + wy("BTC"));
     if (g) say("bia", line(g) + "." + look("XAU") + wy("XAU"));
     say("duda", st.markets.filter(x => x.desk === "duda").map(line).join("; ") + ".");
