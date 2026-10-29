@@ -25,7 +25,7 @@
 
 #include <Trade\Trade.mqh>
 
-input double InpStopMoney    = 80.0;     // Stop por operacao (moeda da conta)
+input double InpStopMoney    = 50.0;     // Stop por operacao (moeda da conta)
 input double InpRR           = 3.0;      // Alvo em multiplos do risco
 input int    InpMaxStopsDay  = 2;        // Stops por dia antes de fechar a mesa
 input string InpSymbols      = "BTCUSD,XAUUSD"; // Ativos (separados por virgula)

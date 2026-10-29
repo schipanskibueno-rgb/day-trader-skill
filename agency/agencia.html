@@ -612,7 +612,7 @@ function profileOf(capital, stopUsd) {
   return { daily, pct, label: pct <= 2 ? "Conservador (1 a 2%)" : pct <= 3.5 ? "Regular (3%)" : pct <= 5 ? "Arrojado (4 a 5%)" : "Acima de 5%: fora do gerenciamento do material" };
 }
 function viewSettings(v) {
-  const cfg = state ? state.config : { capital: 5000, stopUsd: 80, maxStopsPerDay: 2 };
+  const cfg = state ? state.config : { capital: 5000, stopUsd: 50, maxStopsPerDay: 2 };
   v.append(el("h3", null, "Quanto a agencia opera"));
   const f = el("form", "form");
   const lc = el("label", null, "Conta operacional (US$ virtuais)"), ic = el("input"); ic.id = "capital"; ic.type = "number"; ic.min = "100"; ic.step = "100"; ic.value = cfg.capital; ic.inputMode = "decimal"; lc.append(ic);

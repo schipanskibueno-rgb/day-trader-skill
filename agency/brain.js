@@ -26,7 +26,7 @@ const RADAR_URL = "https://claude.ai/artifact/WE7tnuyZmu3in4q1JCxetr";
 const RADAR_NAME = { BTC: "BTC", XAU: "OURO" };   // how the Radar page names the desk's markets
 
 const FOUNDED = "2026-10-27";          // the paper desk trades from this day on
-const DEFAULTS = { capital: 5000, stopUsd: 80, maxStopsPerDay: 2, rr: 3, block: 25 };
+const DEFAULTS = { capital: 5000, stopUsd: 50, maxStopsPerDay: 2, rr: 3, block: 25 };
 const MIN1 = 6e4, MIN2 = 12e4, MIN5 = 3e5, MIN15 = 9e5, HOUR = 36e5, DAY = 864e5;
 const CHART_TFS = [2, 5, 10, 15];       // minutes the agents consult before an order
 // version 2 as the robot runs it: POI on 5m, liquidity of 15m, 1h macro; costs are MT5 spread estimates

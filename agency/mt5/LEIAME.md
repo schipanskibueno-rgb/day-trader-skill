@@ -24,7 +24,7 @@ Versao 1, o metodo antigo da agencia:
   volume alto vira regiao de interesse, marcada pelo volume profile (POC, VAL,
   VAH). Entrada no retorno a regiao com menos volume que o impulso e candle de
   absorcao.
-- **Gestao:** stop de valor fixo (padrao US$ 80, na moeda da conta), alvo 3R
+- **Gestao:** stop de valor fixo (padrao US$ 50 na versao 2 e US$ 80 na versao 1, na moeda da conta), alvo 3R
   sem fechar antes, no maximo 2 stops por dia. Depois disso nao abre mais nada
   ate o dia seguinte do servidor. Mostra os blocos de 25 trades no grafico.
 - **Trava:** so funciona em conta **demo**. Para conta real seria preciso mudar
@@ -69,7 +69,7 @@ do dia, bloco de 25) e uma linha por ativo dizendo o que viu. Quando abrir uma
 ordem, confira na aba Negociacao:
 
 1. **Stop:** passe o dedo/mouse no preco do stop. A perda ate ele deve ficar
-   perto de US$ 80 (um pouco menos, porque o lote e arredondado para baixo).
+   perto de US$ 50 na versao 2 (um pouco menos, porque o lote e arredondado para baixo).
 2. **Alvo:** a distancia entrada-alvo deve ser 3 vezes a distancia
    entrada-stop.
 3. **Comentario:** a ordem aparece como `PregaoVirtual2 POI 3R` (versao 2) ou
@@ -82,7 +82,7 @@ Mensagens comuns na linha do ativo:
 - `ativo nao existe nesta corretora`: o nome do ativo e diferente na sua
   conta (ex.: `BTCUSD` pode nao existir). Ajuste o parametro de ativos.
 - `lote minimo arriscaria mais que o stop definido`: o stop tecnico ficou
-  largo demais para US$ 80 com o menor lote. A ordem e pulada de proposito.
+  largo demais para o stop em dinheiro com o menor lote. A ordem e pulada de proposito.
 - `ordem recusada: ...`: copie a frase e mande para o Claude.
 
 ## Seguranca

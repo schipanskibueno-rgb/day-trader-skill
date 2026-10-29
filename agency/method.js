@@ -236,7 +236,9 @@
     maxRunHtfAtr: 1.5,     // a sweep that runs more than 1.5 higher-chart ATR is a breakdown, not a sweep
     nearHtfAtr: 1.0,       // the higher bottom sits within 1 higher-chart ATR of the sweep low
     entryLife: 24,         // the limit order waits 24 candles
-    stopBufferPoi: 0.1, breakMinor: true, align: "none"
+    stopBufferPoi: 0.1, breakMinor: true, align: "none",
+    stopAt: "poi",         // "poi": a little below the wick of the POI (its pull-down); "sweep": below the wick of the sweep
+    sweepVolMax: 0         // > 0: Wyckoff spring filter, the sweep candle trades less than this many times the average volume
   };
 
   function mirror(b) {
@@ -245,7 +247,7 @@
 
   // buys only; sells run on the mirrored chart
   function poiBuys(b, o, gateAt) {
-    var a = atr(b, o.atrN), hb = aggregate(b, o.htfMs), ha = atr(hb, o.atrN);
+    var a = atr(b, o.atrN), hb = aggregate(b, o.htfMs), ha = atr(hb, o.atrN), vs = sma(b.map(function (x) { return x.v; }), o.volN);
     var hp = pivots(hb, o.htfPivot), lp = pivots(b, o.ltfPivot);
     var htfAt = new Array(b.length).fill(-1), cur = -1;
     hb.forEach(function (h, k) { htfAt[h.last] = k; });
@@ -260,6 +262,8 @@
       if (!swept.length) continue;
       active = active.filter(function (z) { return b[i].l >= z.p; });
       var lvl = Math.min.apply(null, swept.map(function (z) { return z.p; }));
+      // a spring sweeps on low volume; markets without volume data skip the filter
+      if (o.sweepVolMax > 0 && vs[i - 1] && b[i].v > 0 && b[i].v >= o.sweepVolMax * vs[i - 1]) continue;
       var t = hunt(b, a, ha, htfAt, lp, o, i, lvl, gateAt);
       if (t && !seen[t.key]) { seen[t.key] = true; out.push(t); }
     }
@@ -289,7 +293,7 @@
       var ob = null;
       for (var k = PL.i; k >= PH.i && ob === null; k--) if (b[k].c < b[k].o) ob = k;
       var zoneHi = ob !== null ? Math.max(b[ob].o, b[PL.i].c) : b[PL.i].h;
-      var stop = PL.p - o.stopBufferPoi * a[j], plan = zoneHi - stop;
+      var stop = (o.stopAt === "sweep" ? ext : PL.p) - o.stopBufferPoi * a[j], plan = zoneHi - stop;
       if (!(plan > 0) || plan < o.minRiskAtr * a[j] || plan > o.maxRiskAtr * a[j]) return null;
       if (2 * o.fee * Math.abs(zoneHi) > o.maxFeeR * plan) return null;
       for (k = j + 1; k < b.length && k <= j + o.entryLife; k++) {

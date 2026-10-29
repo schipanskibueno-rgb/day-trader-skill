@@ -19,7 +19,7 @@ Um sistema de trade que:
 
 ## Regras de gestao definidas pelo usuario (obrigatorias)
 
-- Stop fixo de **US$ 80** por operacao (editavel na pagina).
+- Stop fixo de **US$ 50** por operacao (era US$ 80 ate 2026-10-29; editavel na pagina). Risco de 1% da conta de US$ 5.000, 2% no dia.
 - Alvo sempre **3R** (3 para 1), sem fechamento antes.
 - **Maximo de 2 stops por dia.** Depois disso o setor de trade "vai embora"
   (apaga as luzes) e so volta na proxima abertura/dia. A pesquisa continua
@@ -158,6 +158,13 @@ plano dos blocos de 25.
 - Gatilho de 2m roda no papel ao lado do de 5m (`desk.compare`). Teste de 6
   meses no BTC: 2m pior que 5m (15 trades -0,39R contra 31 trades +0,25R, sem
   filtro de 1h); o usuario pediu para rodar os dois e comparar em blocos.
+
+## Variantes do POI (2026-10-29)
+
+`node agency/lab-variants.js` (resultado em `agency/lab-variants.json`): o stop
+um pouco abaixo do pavio do POI (regra atual) foi melhor que o stop abaixo do
+pavio da varredura (-0,18R) e que o filtro de volume de Wyckoff (poucos trades,
+negativo). Fica a regra atual.
 
 ## Proximos passos sugeridos
 

@@ -1,0 +1,199 @@
+{
+ "at": "2026-10-29T00:20:42.560Z",
+ "desk": {
+  "stopUsd": 50,
+  "capital": 5000,
+  "maxStopsPerDay": 2,
+  "block": 25
+ },
+ "results": {
+  "base": {
+   "n": 94,
+   "winRate": 32,
+   "expR": 0.13,
+   "usd": 615,
+   "maxDD": 605,
+   "byMarket": {
+    "BTC": {
+     "n": 75,
+     "exp": 0.23
+    },
+    "XAU": {
+     "n": 16,
+     "exp": -0.33
+    },
+    "EUR": {
+     "n": 1,
+     "exp": -1.11
+    },
+    "JPY": {
+     "n": 1,
+     "exp": -1.1
+    },
+    "GBP": {
+     "n": 1,
+     "exp": 2.87
+    }
+   }
+  },
+  "sweep": {
+   "n": 144,
+   "winRate": 24,
+   "expR": -0.18,
+   "usd": -1289,
+   "maxDD": 1407,
+   "byMarket": {
+    "BTC": {
+     "n": 118,
+     "exp": -0.15
+    },
+    "XAU": {
+     "n": 18,
+     "exp": 0.06
+    },
+    "AUD": {
+     "n": 1,
+     "exp": -1.2
+    },
+    "JPY": {
+     "n": 3,
+     "exp": -1.1
+    },
+    "EUR": {
+     "n": 3,
+     "exp": -1.15
+    },
+    "GBP": {
+     "n": 1,
+     "exp": -1.1
+    }
+   }
+  },
+  "volume": {
+   "n": 13,
+   "winRate": 23,
+   "expR": -0.23,
+   "usd": -149,
+   "maxDD": 517,
+   "byMarket": {
+    "BTC": {
+     "n": 9,
+     "exp": 0.16
+    },
+    "XAU": {
+     "n": 3,
+     "exp": -1.1
+    },
+    "JPY": {
+     "n": 1,
+     "exp": -1.1
+    }
+   }
+  },
+  "both": {
+   "n": 29,
+   "winRate": 31,
+   "expR": 0.1,
+   "usd": 138,
+   "maxDD": 453,
+   "byMarket": {
+    "BTC": {
+     "n": 23,
+     "exp": 0.23
+    },
+    "XAU": {
+     "n": 4,
+     "exp": -0.05
+    },
+    "JPY": {
+     "n": 1,
+     "exp": -1.09
+    },
+    "EUR": {
+     "n": 1,
+     "exp": -1.2
+    }
+   }
+  },
+  "base+macro1h": {
+   "n": 21,
+   "winRate": 43,
+   "expR": 0.57,
+   "usd": 604,
+   "maxDD": 370,
+   "byMarket": {
+    "BTC": {
+     "n": 19,
+     "exp": 0.75
+    },
+    "XAU": {
+     "n": 2,
+     "exp": -1.05
+    }
+   }
+  },
+  "sweep+macro1h": {
+   "n": 39,
+   "winRate": 26,
+   "expR": -0.1,
+   "usd": -195,
+   "maxDD": 672,
+   "byMarket": {
+    "BTC": {
+     "n": 32,
+     "exp": -0.01
+    },
+    "XAU": {
+     "n": 4,
+     "exp": -0.04
+    },
+    "JPY": {
+     "n": 1,
+     "exp": -1.07
+    },
+    "EUR": {
+     "n": 2,
+     "exp": -1.18
+    }
+   }
+  },
+  "volume+macro1h": {
+   "n": 5,
+   "winRate": 20,
+   "expR": -0.34,
+   "usd": -84,
+   "maxDD": 226,
+   "byMarket": {
+    "BTC": {
+     "n": 3,
+     "exp": 0.14
+    },
+    "XAU": {
+     "n": 2,
+     "exp": -1.05
+    }
+   }
+  },
+  "both+macro1h": {
+   "n": 11,
+   "winRate": 18,
+   "expR": -0.42,
+   "usd": -231,
+   "maxDD": 373,
+   "byMarket": {
+    "BTC": {
+     "n": 7,
+     "exp": -0.61
+    },
+    "XAU": {
+     "n": 3,
+     "exp": 0.3
+    },
+    "EUR": {
+     "n": 1,
+     "exp": -1.2
+    }
+   }
+  }
+ }
+}
