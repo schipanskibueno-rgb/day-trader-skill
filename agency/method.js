@@ -238,8 +238,21 @@
     entryLife: 24,         // the limit order waits 24 candles
     stopBufferPoi: 0.1, breakMinor: true, align: "none",
     stopAt: "poi",         // "poi": a little below the wick of the POI (its pull-down); "sweep": below the wick of the sweep
-    sweepVolMax: 0         // > 0: Wyckoff spring filter, the sweep candle trades less than this many times the average volume
+    sweepVolMax: 0,        // > 0: Wyckoff spring filter, the sweep candle trades less than this many times the average volume
+    // Wyckoff only inside a sideways structure: when the sweep happens at the edge of a trading range of the
+    // higher chart, it must look like a spring (less volume than average); outside a range the POI is unchanged
+    wyckoffRange: false, rangeBars: 32, rangeAtr: 4, rangeDrift: 0.5, rangeEdgeAtr: 0.5, springVol: 1
   };
+
+  // a sideways structure (trading range) on the last n candles of a chart ending at q: narrow and going nowhere
+  function tradingRange(hb, ha, q, o) {
+    if (q < o.rangeBars || !ha[q]) return null;
+    var hi = -Infinity, lo = Infinity;
+    for (var k = q - o.rangeBars + 1; k <= q; k++) { hi = Math.max(hi, hb[k].h); lo = Math.min(lo, hb[k].l); }
+    var height = hi - lo, drift = Math.abs(hb[q].c - hb[q - o.rangeBars + 1].o);
+    if (height > o.rangeAtr * ha[q] || drift > o.rangeDrift * height) return null;
+    return { hi: hi, lo: lo, from: hb[q - o.rangeBars + 1].t, to: hb[q].t };
+  }
 
   function mirror(b) {
     return b.map(function (x) { return { t: x.t, o: -x.o, h: -x.l, l: -x.h, c: -x.c, v: x.v }; });
@@ -264,6 +277,11 @@
       var lvl = Math.min.apply(null, swept.map(function (z) { return z.p; }));
       // a spring sweeps on low volume; markets without volume data skip the filter
       if (o.sweepVolMax > 0 && vs[i - 1] && b[i].v > 0 && b[i].v >= o.sweepVolMax * vs[i - 1]) continue;
+      // Wyckoff only at the bottom edge of a sideways structure of the higher chart (closed candles before this one)
+      if (o.wyckoffRange && vs[i - 1] && b[i].v > 0) {
+        var q = htfAt[i - 1], tr = q >= 0 ? tradingRange(hb, ha, q, o) : null;
+        if (tr && lvl - tr.lo <= o.rangeEdgeAtr * ha[q] && b[i].v >= o.springVol * vs[i - 1]) continue;
+      }
       var t = hunt(b, a, ha, htfAt, lp, o, i, lvl, gateAt);
       if (t && !seen[t.key]) { seen[t.key] = true; out.push(t); }
     }
@@ -413,7 +431,7 @@
   }
 
   var api = { P: P, atr: atr, sma: sma, aggregate: aggregate, pivots: pivots, macroStates: macroStates, profile: profile,
-              findRegions: findRegions, setups: setups, POI: POI, poiSetups: poiSetups, mirror: mirror, resolve: resolve, desk: desk, snapshot: snapshot, dayOf: dayOf };
+              findRegions: findRegions, setups: setups, POI: POI, poiSetups: poiSetups, mirror: mirror, tradingRange: tradingRange, resolve: resolve, desk: desk, snapshot: snapshot, dayOf: dayOf };
   root.Method = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : this);

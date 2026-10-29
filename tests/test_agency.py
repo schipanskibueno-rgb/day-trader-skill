@@ -68,6 +68,13 @@ const lim = [bar(0, 100, 100, 100, 100, 1), bar(H, 101, 104, 99.8, 103.5, 1), ba
 out.limit = [M.resolve(lim, { i: 0, entryIdx: 1, dir: 1, entry: 100, stop: 99, take: 103, risk: 1, limit: true }, 0).exitIdx,
              M.resolve(lim, { i: 0, entryIdx: 1, dir: 1, entry: 100, stop: 99, take: 103, risk: 1 }, 0).exitIdx];
 
+// Wyckoff in reserve: a sideways 15m stretch is a trading range, a trend is not
+const flat = [], trend = [];
+for (let i = 0; i < 80; i++) { const f = 100 + Math.sin(i / 3) * 0.5; flat.push(bar(i * 9e5, f, f + 0.6, f - 0.6, f + 0.1, 100));
+  const g = 100 + i * 0.8; trend.push(bar(i * 9e5, g, g + 0.6, g - 0.6, g + 0.5, 100)); }
+const oo = Object.assign({}, M.P, M.POI);
+out.range = [!!M.tradingRange(flat, M.atr(flat, 14), 79, oo), !!M.tradingRange(trend, M.atr(trend, 14), 79, oo)];
+
 out.tone = [B.tone("Ibovespa dispara e bate recorde"), B.tone("Bitcoin despenca com medo de recessao"), B.tone("Mercado aguarda decisao do Fed")];
 out.tags = B.tagsOf("Lula reeleito: dolar dispara", "Politica");
 out.climate = [B.climate([{id: "^GSPC", chg5d: 0.02}, {id: "^VIX", price: 14}, {id: "DX-Y.NYB", chg5d: -0.01}]).label,
@@ -121,6 +128,9 @@ class Agency(unittest.TestCase):
 
     def test_limit_fill_does_not_take_the_target_in_its_own_candle(self):
         self.assertEqual(self.out["limit"], [2, 1])
+
+    def test_wyckoff_only_sees_sideways_structures(self):
+        self.assertEqual(self.out["range"], [True, False])
 
     def test_brain_helpers(self):
         self.assertEqual(self.out["tone"], [1, -1, 0])

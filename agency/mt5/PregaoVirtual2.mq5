@@ -42,6 +42,12 @@ input double InpMaxRiskAtr   = 4.0;      // Risco maximo (ATR do M5)
 input double InpMaxCostR     = 0.25;     // Spread maximo (fracao do risco)
 input double InpClimaxVol    = 2.0;      // Volume que define o controle (x media, H1)
 input double InpClimaxSpread = 1.2;      // Tamanho que define o controle (ATR, H1)
+input bool   InpWyckoffRange = true;     // Wyckoff so em lateralizacao: varredura na borda exige volume baixo (spring)
+input int    InpRangeBars    = 32;       // Candles M15 da lateralizacao (8 horas)
+input double InpRangeAtr     = 4.0;      // Altura maxima da lateralizacao (ATR do M15)
+input double InpRangeDrift   = 0.5;      // Deslocamento maximo dentro da lateralizacao (fracao da altura)
+input double InpRangeEdgeAtr = 0.5;      // Varredura perto da borda (ATR do M15)
+input double InpSpringVol    = 1.0;      // Volume do spring menor que (x media)
 
 #define ATR_N    14
 #define VOL_N    20
@@ -188,6 +194,19 @@ int MacroBias(const string sym)
    return flow;
   }
 
+//------------------------------------------------------------------ Wyckoff, kept in reserve
+
+// a sideways structure on the M15 candles ending at q: narrow and going nowhere; fills its bottom
+bool TradingRange(const MqlRates &h[], const double &ha[], const int q, double &lo)
+  {
+   if(q < InpRangeBars || ha[q] <= 0) return false;
+   double hi = -DBL_MAX;
+   lo = DBL_MAX;
+   for(int k = q - InpRangeBars + 1; k <= q; k++) { hi = MathMax(hi, h[k].high); lo = MathMin(lo, h[k].low); }
+   double height = hi - lo, drift = MathAbs(h[q].close - h[q - InpRangeBars + 1].open);
+   return height <= InpRangeAtr * ha[q] && drift <= InpRangeDrift * height;
+  }
+
 //------------------------------------------------------------------ the POI (buy side)
 
 // follows one sweep at M5 candle s; true only when the POI confirms exactly at the last closed candle
@@ -232,9 +251,10 @@ bool FindPoi(const MqlRates &b[], const int n, const MqlRates &h[], const int nh
   {
    sweeps = 0;
    if(n < 200 || nh < 60) return false;
-   double a[], ha[];
+   double a[], ha[], vs[];
    Atr(b, n, a);
    Atr(h, nh, ha);
+   VolSma(b, n, vs);
    bool pHi[], pLo[], hHi[], hLo[];
    Pivots(b, n, LTF_K, pHi, pLo);
    Pivots(h, nh, HTF_K, hHi, hLo);
@@ -260,6 +280,7 @@ bool FindPoi(const MqlRates &b[], const int n, const MqlRates &h[], const int nh
    int last = n - 1, q = -1;
    for(int i = 1; i < n; i++)
      {
+      int qPrev = q;                                                   // M15 candles closed before this M5 candle
       while(q + 1 < nh && h[q + 1].time + htfSec <= b[i].time + baseSec) q++;
       double lvl = DBL_MAX;
       bool swept = false;
@@ -269,6 +290,10 @@ bool FindPoi(const MqlRates &b[], const int n, const MqlRates &h[], const int nh
          if(b[i].low < lp[z]) { alive[z] = false; swept = true; lvl = MathMin(lvl, lp[z]); }
         }
       if(!swept || i < last - InpHuntLife || q < ATR_N - 1) continue;
+      // Wyckoff only at the bottom edge of a sideways structure: the sweep must be a spring (low volume)
+      double rlo;
+      if(InpWyckoffRange && vs[i - 1] > 0 && b[i].tick_volume > 0 && qPrev >= 0 && TradingRange(h, ha, qPrev, rlo) &&
+         lvl - rlo <= InpRangeEdgeAtr * ha[qPrev] && (double)b[i].tick_volume >= InpSpringVol * vs[i - 1]) continue;
       sweeps++;
       if(Hunt(b, n, a, pHi, pLo, i, lvl, ha[q], out)) return true;
      }

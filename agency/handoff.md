@@ -155,6 +155,7 @@ plano dos blocos de 25.
   varridas, POIs). O Radar mostra os mesmos candles para BTC e OURO, lidos do
   banco dele (`radar/candles`), gravado pela tarefa agendada
   (`--radar-out`).
+- Wyckoff fica em reserva (`agency/wyckoff.md`): so age em lateralizacao de 15m (`wyckoffRange`).
 - Gatilho de 2m roda no papel ao lado do de 5m (`desk.compare`). Teste de 6
   meses no BTC: 2m pior que 5m (15 trades -0,39R contra 31 trades +0,25R, sem
   filtro de 1h); o usuario pediu para rodar os dois e comparar em blocos.

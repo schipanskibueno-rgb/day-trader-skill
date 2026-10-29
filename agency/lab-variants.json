@@ -1,5 +1,5 @@
 {
- "at": "2026-10-29T00:20:42.560Z",
+ "at": "2026-10-29T00:25:36.827Z",
  "desk": {
   "stopUsd": 50,
   "capital": 5000,
@@ -115,6 +115,35 @@
     }
    }
   },
+  "wyckoffRange": {
+   "n": 94,
+   "winRate": 32,
+   "expR": 0.13,
+   "usd": 615,
+   "maxDD": 605,
+   "byMarket": {
+    "BTC": {
+     "n": 75,
+     "exp": 0.23
+    },
+    "XAU": {
+     "n": 16,
+     "exp": -0.33
+    },
+    "EUR": {
+     "n": 1,
+     "exp": -1.11
+    },
+    "JPY": {
+     "n": 1,
+     "exp": -1.1
+    },
+    "GBP": {
+     "n": 1,
+     "exp": 2.87
+    }
+   }
+  },
   "base+macro1h": {
    "n": 21,
    "winRate": 43,
@@ -192,6 +221,23 @@
     "EUR": {
      "n": 1,
      "exp": -1.2
+    }
+   }
+  },
+  "wyckoffRange+macro1h": {
+   "n": 21,
+   "winRate": 43,
+   "expR": 0.57,
+   "usd": 604,
+   "maxDD": 370,
+   "byMarket": {
+    "BTC": {
+     "n": 19,
+     "exp": 0.75
+    },
+    "XAU": {
+     "n": 2,
+     "exp": -1.05
     }
    }
   }

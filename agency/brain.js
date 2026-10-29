@@ -30,9 +30,9 @@ const DEFAULTS = { capital: 5000, stopUsd: 50, maxStopsPerDay: 2, rr: 3, block: 
 const MIN1 = 6e4, MIN2 = 12e4, MIN5 = 3e5, MIN15 = 9e5, HOUR = 36e5, DAY = 864e5;
 const CHART_TFS = [2, 5, 10, 15];       // minutes the agents consult before an order
 // version 2 as the robot runs it: POI on 5m, liquidity of 15m, 1h macro; costs are MT5 spread estimates
-const V2 = { htfMs: MIN15, align: "bias", macroMs: HOUR };
-const V2_1H = { htfMs: 4 * HOUR, align: "bias", macroMs: 4 * HOUR };
-const V2_M2 = { htfMs: MIN15, align: "bias", macroMs: HOUR };   // the same POI with a 2-minute trigger, run side by side
+const V2 = { htfMs: MIN15, align: "bias", macroMs: HOUR, wyckoffRange: true };
+const V2_1H = { htfMs: 4 * HOUR, align: "bias", macroMs: 4 * HOUR, wyckoffRange: true };
+const V2_M2 = { htfMs: MIN15, align: "bias", macroMs: HOUR, wyckoffRange: true };   // the same POI with a 2-minute trigger, run side by side
 const UA = { "User-Agent": "Mozilla/5.0 (agency-brain)" };
 
 const MARKETS = [
@@ -330,6 +330,16 @@ function consult(byTf, T) {
 }
 const radarWord = r => r && r.radar ? " (Radar: " + r.radar.code + " " + r.radar.force + "%)" : "";
 
+// Wyckoff is kept in reserve: it only speaks when the 15-minute chart builds a sideways structure
+function wyckoffNow(b15) {
+  if (!b15 || b15.length < 60) return null;
+  const o = Object.assign({}, M.P, M.POI), tr = M.tradingRange(b15, M.atr(b15, o.atrN), b15.length - 1, o);
+  if (!tr) return null;
+  const last = b15[b15.length - 1].c, pos = (last - tr.lo) / ((tr.hi - tr.lo) || 1);
+  return { hi: tr.hi, lo: tr.lo, from: tr.from, pos: round(pos, 2),
+           note: "estrutura lateral de " + (o.rangeBars * 15 / 60) + "h: uma varredura na borda so vale como spring (abaixo) ou upthrust (acima) com volume abaixo da media" };
+}
+
 function chartPack(m, byTf, liq, trades, now) {
   const tfs = {};
   CHART_TFS.forEach(tf => {
@@ -342,7 +352,7 @@ function chartPack(m, byTf, liq, trades, now) {
     level: t.poi ? t.poi.level : null }));
   const radar = {};
   CHART_TFS.forEach(tf => { const b = byTf[tf]; if (b) radar[tf + "m"] = b.slice(-300).map(x => [x.t, x.o, x.h, x.l, x.c, round(x.v, 4)]); });
-  return { asset: m.short, dec: m.dec, tfs, liquidity: liq, pois, reading: consult(byTf, now), radarCandles: radar };
+  return { asset: m.short, dec: m.dec, tfs, liquidity: liq, pois, reading: consult(byTf, now), radarCandles: radar, wyckoff: wyckoffNow(byTf[15]) };
 }
 
 function readMarket(m, b15, s15, study, now, b5, openTrade) {
@@ -425,8 +435,10 @@ function meeting(st, now) {
     return " Consultei os graficos e o Radar: " + Object.keys(c.reading).map(k => k + " " + c.reading[k].word + radarWord(c.reading[k])).join(", ") + "."; };
   if (!closed) {
     const b = mk("BTC"), g = mk("XAU");
-    if (b) say("rafa", line(b) + "." + look("BTC"));
-    if (g) say("bia", line(g) + "." + look("XAU"));
+    const wy = s => { const c = st.charts[s], w = c && c.wyckoff; return w ? " Wyckoff: lateralizacao entre " + px(mk(s), w.lo) + " e " + px(mk(s), w.hi) +
+      " desde " + new Date(w.from).toISOString().slice(11, 16) + " UTC; spring ou upthrust so com volume baixo." : ""; };
+    if (b) say("rafa", line(b) + "." + look("BTC") + wy("BTC"));
+    if (g) say("bia", line(g) + "." + look("XAU") + wy("XAU"));
     say("duda", st.markets.filter(x => x.desk === "duda").map(line).join("; ") + ".");
   }
   const sim = D.sim, study = D.study;
@@ -574,7 +586,7 @@ async function main() {
   const radarDoc = { updatedAt: now, nextAt: st.nextAt, source: "Agencia Pregao Virtual (Binance e futuros CME)", assets: {} };
   Object.keys(st.charts).forEach(k => {
     const c = st.charts[k];
-    radarDoc.assets[RADAR_NAME[k] || k] = { tfs: c.radarCandles, liquidity: c.liquidity, pois: c.pois, reading: c.reading, dec: c.dec };
+    radarDoc.assets[RADAR_NAME[k] || k] = { tfs: c.radarCandles, liquidity: c.liquidity, pois: c.pois, reading: c.reading, dec: c.dec, wyckoff: c.wyckoff };
     delete c.radarCandles;
   });
   if (arg("--radar-out")) fs.writeFileSync(arg("--radar-out"), JSON.stringify(radarDoc));

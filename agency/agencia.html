@@ -478,6 +478,7 @@ function viewCharts(v) {
   add("Liquidez acima", pack.liquidity.above.length ? pack.liquidity.above.map(x => fmt(x, pack.dec)).join(" · ") : "-");
   add("Liquidez abaixo", pack.liquidity.below.length ? pack.liquidity.below.map(x => fmt(x, pack.dec)).join(" · ") : "-");
   add("Varridas em 24h", String(pack.liquidity.swept.length));
+  add("Wyckoff (so em lateralizacao)", pack.wyckoff ? "lateral entre " + fmt(pack.wyckoff.lo, pack.dec) + " e " + fmt(pack.wyckoff.hi, pack.dec) : "sem estrutura lateral: fica em reserva");
   v.append(kv);
   if (pack.pois.length) {
     v.append(el("h3", null, "POIs dos ultimos 2 dias"));
