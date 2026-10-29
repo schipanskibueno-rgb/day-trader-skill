@@ -32,7 +32,7 @@ const MT5_CMD_TOPIC = process.env.MT5_CMD_TOPIC || MT5_TOPIC + "-cmd";
 const MT5_SYMBOL = { BTC: "BTCUSD", XAU: "XAUUSD" };
 
 const FOUNDED = "2026-10-27";          // the paper desk trades from this day on
-const DEFAULTS = { capital: 5000, stopUsd: 50, maxStopsPerDay: 2, rr: 3, block: 25 };
+const DEFAULTS = { capital: 5000, stopUsd: 50, maxStopsPerDay: 2, rr: 3, block: 25, followMt5: true };
 const MIN1 = 6e4, MIN2 = 12e4, MIN5 = 3e5, MIN15 = 9e5, HOUR = 36e5, DAY = 864e5;
 const CHART_TFS = [2, 5, 10, 15];       // minutes the agents consult before an order
 // version 2 as the robot runs it: POI on 5m, liquidity of 15m, 1h macro; costs are MT5 spread estimates
@@ -201,6 +201,7 @@ function readConfig(file) {
     if (raw && raw.data && typeof raw.data === "object") raw = raw.data;
     if (+raw.capital > 0) cfg.capital = +raw.capital;
     if (+raw.stopUsd > 0) cfg.stopUsd = +raw.stopUsd;
+    cfg.followMt5 = raw.followMt5 !== false;
     if (typeof raw.testOrder === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.testOrder)) cfg.testOrder = raw.testOrder;
   }
   return cfg;
@@ -632,6 +633,13 @@ async function main() {
   const args = process.argv.slice(2), arg = k => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
   const out = arg("--out"), every = arg("--every-hours") ? +arg("--every-hours") : null;
   const cfg = readConfig(arg("--config"));
+  // the account the agency works with follows the balance of the MT5 account (unless the owner turned it off)
+  const mt5 = await mt5Robot(Date.now());
+  cfg.capitalTyped = cfg.capital;
+  if (cfg.followMt5 && mt5.connected && mt5.bal > 0 && Date.now() - mt5.at < 12 * HOUR) {
+    cfg.capital = Math.round(mt5.bal * 100) / 100;
+    cfg.capitalFrom = "saldo da conta MT5 " + mt5.acc;
+  }
   const now = Date.now(), founded = Date.parse(FOUNDED + "T00:00:00Z"), errors = [];
   const byId = {}, live = [], sim = [], study = [], labRuns = { v1: [], v2: [], v2macro: [] }, markets = [], series15 = {};
   const live2 = [], sim2 = [], charts = {}, consults = {};
@@ -698,7 +706,6 @@ async function main() {
   Object.keys(labRuns).forEach(k => { const d = M.desk(labRuns[k], deskCfg); lab[k] = { n: d.n, win: round(d.winRate * 100, 0), exp: round(d.expectancy, 2) }; });
 
   const headlines = (await news(now)).slice(0, 20);
-  const mt5 = await mt5Robot(now);
   const glob = await macro(GLOBAL), nat = await macro(NATIONAL);
   const st = {
     version: 3, updatedAt: now, nextAt: every ? now + every * HOUR : null, founded: FOUNDED,

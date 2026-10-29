@@ -665,7 +665,13 @@ function viewSettings(v) {
   const cfg = state ? state.config : { capital: 5000, stopUsd: 50, maxStopsPerDay: 2 };
   v.append(el("h3", null, "Quanto a agencia opera"));
   const f = el("form", "form");
-  const lc = el("label", null, "Conta operacional (US$ virtuais)"), ic = el("input"); ic.id = "capital"; ic.type = "number"; ic.min = "100"; ic.step = "100"; ic.value = cfg.capital; ic.inputMode = "decimal"; lc.append(ic);
+  const lc = el("label", null, "Conta operacional (US$ virtuais)"), ic = el("input"); ic.id = "capital"; ic.type = "number"; ic.min = "100"; ic.step = "100"; ic.value = cfg.capitalTyped || cfg.capital; ic.inputMode = "decimal"; lc.append(ic);
+  // follow the MT5 balance: the agency reads it from the robot every reading
+  const lf = el("label", "tog"), fm = el("input"); fm.type = "checkbox"; fm.id = "followMt5"; fm.checked = cfg.followMt5 !== false;
+  lf.append(fm, "Usar o saldo da conta do MetaTrader 5 como conta da agencia");
+  const fromMt5 = el("p", "note", cfg.capitalFrom ? "Agora: " + usd(cfg.capital) + " (" + cfg.capitalFrom + "). Mude o saldo no MT5 e a agencia acompanha na proxima leitura."
+    : "O robo ainda nao enviou o saldo do MT5; enquanto isso vale o valor digitado.");
+  const syncCap = () => { ic.disabled = fm.checked; lc.style.opacity = fm.checked ? 0.5 : 1; if (fm.checked && cfg.capitalFrom) ic.value = cfg.capital; upd(); };
   const ls = el("label", null, "Stop por operacao (US$)"), is = el("input"); is.id = "stopUsd"; is.type = "number"; is.min = "1"; is.step = "1"; is.value = cfg.stopUsd; is.inputMode = "decimal"; ls.append(is);
   const out = el("div", "card");
   const upd = () => {
@@ -676,15 +682,16 @@ function viewSettings(v) {
     add("Perfil (material Excelencia Trading)", p.label);
     out.append(kv);
   };
-  ic.oninput = upd; is.oninput = upd; upd();
+  ic.oninput = upd; is.oninput = upd; fm.onchange = syncCap;
   const save = el("button", "btn primary", "Salvar para a proxima leitura"); save.type = "submit";
-  f.append(lc, ls, out, save);
+  f.append(lf, fromMt5, lc, ls, out, save);
+  syncCap();
   f.onsubmit = async e => {
     e.preventDefault();
-    const cap = +ic.value, st = +is.value;
-    if (!(cap >= 100 && st > 0 && st <= cap)) { toast("Use conta de pelo menos US$ 100 e stop menor que a conta."); return; }
+    const cap = fm.checked ? +(cfg.capitalTyped || cfg.capital) : +ic.value, st = +is.value;
+    if (!(cap >= 100 && st > 0 && st <= +ic.value)) { toast("Use conta de pelo menos US$ 100 e stop menor que a conta."); return; }
     if (!db) { toast("Sem conexao com o banco: abra pelo link logado no claude.ai."); return; }
-    try { await db.doc("agency/config").set({ capital: cap, stopUsd: st, savedAt: Date.now() }); toast("Salvo. Vale a partir da proxima leitura (ate 3h)."); }
+    try { await db.doc("agency/config").set({ capital: cap, stopUsd: st, followMt5: fm.checked, savedAt: Date.now() }); toast("Salvo. Vale a partir da proxima leitura (ate 3h)."); }
     catch (err) { toast("Nao foi possivel salvar: so o dono da pagina pode mudar os ajustes."); }
   };
   v.append(f);

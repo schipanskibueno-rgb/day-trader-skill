@@ -19,6 +19,7 @@ Um sistema de trade que:
 
 ## Regras de gestao definidas pelo usuario (obrigatorias)
 
+- A conta da agencia segue o saldo do MT5 (followMt5, padrao ligado; o robo manda o saldo pela ponte).
 - Stop fixo de **US$ 50** por operacao (era US$ 80 ate 2026-10-29; editavel na pagina). Risco de 1% da conta de US$ 5.000, 2% no dia.
 - Alvo sempre **3R** (3 para 1), sem fechamento antes.
 - **Maximo de 2 stops por dia.** Depois disso o setor de trade "vai embora"
