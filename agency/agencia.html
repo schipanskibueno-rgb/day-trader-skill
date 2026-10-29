@@ -397,6 +397,29 @@ function viewBroker(v) {
       R5.st.forEach(t => v.append(el("div", "small muted", t)));
     }
   }
+  // what the agency decided for the robot in this reading
+  if (state.command) {
+    const C = state.command, word = { BUY: "so compras", SELL: "so vendas", BOTH: "compras e vendas", NONE: "nao operar" };
+    v.append(el("h3", null, "Decisao da agencia para o robo · " + when(C.at)));
+    const pr = el("div", "rows");
+    C.plan.forEach(p => { const r = el("div", "row"), left = el("div");
+      left.append(el("div", null, p.short + " (" + p.sym + "): " + word[p.allow]), el("div", "small muted", p.why));
+      r.append(left, el("span", "pill " + (p.allow === "BUY" ? "buy" : p.allow === "SELL" ? "sell" : "hold"), p.allow)); pr.append(r); });
+    C.orders.forEach(o => { const r = el("div", "row"), left = el("div");
+      left.append(el("div", null, "Ordem direta " + o.tag.toLowerCase() + ": " + (o.side === "BUY" ? "compra " : "venda ") + o.sym + " a mercado"),
+                  el("div", "small muted", "stop a " + fmt(o.frac * 100, 2) + "% do preco, alvo 3R, risco ate " + usd(o.risk) + " · " + o.why));
+      r.append(left); pr.append(r); });
+    v.append(pr);
+    v.append(el("p", "note", C.sent ? "Plano e ordens enviados ao robo com a assinatura da agencia; valem ate a proxima leitura." : (C.note || "nao enviado")));
+    if (state.mt5 && state.mt5.connected && (state.mt5.res || []).length) {
+      v.append(el("h3", null, "O que o robo fez com as ordens da agencia"));
+      const rr = el("div", "rows"); state.mt5.res.slice().reverse().forEach(t => rr.append(el("div", "row small", t))); v.append(rr);
+    }
+    if (state.mt5 && state.mt5.connected && (state.mt5.rej || []).length) {
+      v.append(el("h3", null, "Ordens recusadas pela corretora"));
+      const rj = el("div", "rows"); state.mt5.rej.forEach(x => rj.append(el("div", "row small", x.s + " · " + (x.t ? when(x.t) + " · " : "") + (x.c || "sem comentario")))); v.append(rj);
+    }
+  }
   v.append(el("h3", null, "Corretora virtual · desde " + state.founded.split("-").reverse().join("/")));
   const k = el("div", "kpis");
   k.append(kpi("patrimonio (conta de " + usd(cfg.capital) + ")", usd(L.equity)), kpi("resultado", (L.pnl >= 0 ? "+" : "") + usd(L.pnl), L.pnl >= 0 ? "pos" : "neg"),

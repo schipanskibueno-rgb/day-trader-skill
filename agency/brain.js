@@ -20,12 +20,16 @@
 
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const M = require(path.join(__dirname, "method.js"));
 const RADAR = require(path.join(__dirname, "radar-engine.js"));
 const RADAR_URL = "https://claude.ai/artifact/WE7tnuyZmu3in4q1JCxetr";
 const RADAR_NAME = { BTC: "BTC", XAU: "OURO" };   // how the Radar page names the desk's markets
 // the MT5 robot posts a summary of its demo account to this ntfy.sh channel (kept 12 hours there)
 const MT5_TOPIC = "pregao-virtual-a224d58b32c0";
+// ...and reads the agency's plan and orders from this one; every message is signed with MT5_KEY
+const MT5_CMD_TOPIC = process.env.MT5_CMD_TOPIC || MT5_TOPIC + "-cmd";
+const MT5_SYMBOL = { BTC: "BTCUSD", XAU: "XAUUSD" };
 
 const FOUNDED = "2026-10-27";          // the paper desk trades from this day on
 const DEFAULTS = { capital: 5000, stopUsd: 50, maxStopsPerDay: 2, rr: 3, block: 25 };
@@ -148,7 +152,9 @@ function cleanMt5(raw, now) {
   return { connected: true, at: t * 1000, acc: num(raw.acc), srv: str(raw.srv, 40), demo: raw.demo === true, cur: str(raw.cur, 8),
            bal: num(raw.bal), eq: num(raw.eq), stops: num(raw.stops), open: raw.open === true, stop: num(raw.stop), algo: raw.algo === true,
            pos: list(raw.pos, 10).map(leg), ord: list(raw.ord, 10).map(leg), deals: list(raw.deals, 10).map(leg),
-           n: num(raw.n), w: num(raw.w), sum: num(raw.sum), st: list(raw.st, 6).map(x => str(x)) };
+           n: num(raw.n), w: num(raw.w), sum: num(raw.sum), st: list(raw.st, 6).map(x => str(x)),
+           res: list(raw.res, 8).map(x => str(x, 220)), agency: str(raw.agency, 200),
+           rej: list(raw.rej, 5).map(x => ({ s: str(x.s, 20), st: num(x.st), c: str(x.c, 60), t: num(x.t) === null ? null : x.t * 1000 })) };
 }
 
 async function mt5Robot(now, topic) {
@@ -195,6 +201,7 @@ function readConfig(file) {
     if (raw && raw.data && typeof raw.data === "object") raw = raw.data;
     if (+raw.capital > 0) cfg.capital = +raw.capital;
     if (+raw.stopUsd > 0) cfg.stopUsd = +raw.stopUsd;
+    if (typeof raw.testOrder === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.testOrder)) cfg.testOrder = raw.testOrder;
   }
   return cfg;
 }
@@ -499,6 +506,17 @@ function meeting(st, now) {
     sgn(lab.v2.exp) + "R em " + lab.v2.n + "; POI com macro 1h (a da mesa) " + sgn(lab.v2macro.exp) + "R em " + lab.v2macro.n + ". Julgamos em blocos de 25 trades novos.");
   say("nina", "Leitura com " + st.markets.length + " mercados, " + (st.global.length + st.national.length) + " indicadores e " + st.news.length +
     " noticias. Fontes: Binance, Yahoo Finance (futuros CME), Google Noticias e MarketWatch." + (st.errors.length ? " Falhas: " + st.errors.length + "." : ""));
+  const C = st.command;
+  if (C) {
+    say("marta", "Plano para o robo no MT5 ate a proxima leitura: " + C.plan.map(p => p.short + " " +
+      ({ BUY: "so compras", SELL: "so vendas", BOTH: "compras e vendas", NONE: "nada" })[p.allow] + " (" + p.why + ")").join("; ") +
+      (C.orders.length ? ". Ordem direta: " + C.orders.map(o => (o.side === "BUY" ? "compra" : "venda") + " de " + o.short + " (" + o.tag.toLowerCase() + "), stop a " +
+        fmt(o.frac * 100, 2) + "% e alvo 3R").join("; ") : "") + (C.sent ? ". Enviado e assinado." : ". " + C.note + "."));
+  }
+  if (R5 && R5.connected && (R5.res.length || R5.rej.length)) {
+    say("teo", "Retorno do MT5: " + R5.res.slice(-3).join(" | ") + (R5.rej.length ? (R5.res.length ? " | " : "") + "recusadas pela corretora: " +
+      R5.rej.map(x => x.s + " " + explainRefusal(x.c)).join("; ") : "") + ".");
+  }
   const r0 = st.research.ranking[0];
   say("helena", "Leitura da casa: clima " + st.climate.label + ". " + (r0 ? "Melhor cenario para " + (closed ? "a proxima sessao" : "agora") + ": " + r0.asset +
     " (" + r0.why.slice(0, 2).join(", ") + "). " : "") + "Seguimos o plano, no papel. Nao e recomendacao de investimento.");
@@ -526,6 +544,86 @@ function agentReports(st) {
   add("caio", "Comparando a versao 1 com o POI", "POI + macro: " + sgn(st.lab.v2macro.exp) + "R");
   add("nina", "Cuidando dos dados e das fontes", st.markets.length + " mercados lidos");
   return r;
+}
+
+// ---------------------------------------------------------------- the agency decides, the robot executes
+
+const ascii = s => plain(String(s)).replace(/[^\x20-\x7e]/g, "").replace(/\s+/g, " ").trim();
+
+// what a broker refusal means (comments the MT5 server writes on rejected orders)
+function explainRefusal(c) {
+  const t = String(c || "").toLowerCase();
+  if (t.indexOf("no money") >= 0) return "sem margem livre suficiente na conta para o lote pedido";
+  if (t.indexOf("invalid stops") >= 0) return "stop ou alvo perto demais do preco";
+  if (t.indexOf("market closed") >= 0) return "mercado fechado";
+  if (t.indexOf("autotrading") >= 0) return "Algotrading desligado";
+  if (t.indexOf("invalid volume") >= 0) return "lote invalido";
+  return t ? "recusada pela corretora (" + t + ")" : "cancelada (venceu ou mesa fechou)";
+}
+
+// markets the robot reported it cannot find at its broker
+function missingAtBroker(st) {
+  const out = {};
+  const lines = st.mt5 && st.mt5.connected ? st.mt5.st : [];
+  Object.keys(MT5_SYMBOL).forEach(k => { if (lines.some(l => l.indexOf(MT5_SYMBOL[k] + ":") === 0 && l.indexOf("nao existe") >= 0)) out[k] = true; });
+  return out;
+}
+
+// the plan for each traded market: which side the robot may take until the next reading, and why not
+function deskPlan(st, cfg, now) {
+  const mt5 = st.mt5 && st.mt5.connected ? st.mt5 : null, missing = missingAtBroker(st);
+  const closed = st.desk.today.closed || (mt5 && mt5.stops >= cfg.maxStopsPerDay);
+  return st.markets.filter(m => m.trade).map(m => {
+    const sym = MT5_SYMBOL[m.short], bias = m.macro ? m.macro.bias : 0, c = st.charts[m.short];
+    const r5 = c && c.reading["5m"] && c.reading["5m"].radar, r15 = c && c.reading["15m"] && c.reading["15m"].radar;
+    let allow = bias > 0 ? "BUY" : bias < 0 ? "SELL" : "NONE", why;
+    if (missing[m.short]) { allow = "NONE"; why = sym + " nao existe nesta corretora"; }
+    else if (closed) { allow = "NONE"; why = "mesa fechada: 2 stops hoje"; }
+    else if (!m.open) { allow = "NONE"; why = "mercado fechado"; }
+    else if (!bias) why = "macro 1h sem clareza: nao operar";
+    else if (r5 && r15 && r5.dir === -bias && r15.dir === -bias && r5.force >= 70 && r15.force >= 70) {
+      allow = "NONE"; why = "recusado: Radar forte contra em 5m e 15m (" + r5.code + ", " + r15.code + ")";
+    } else why = "macro 1h de " + (bias > 0 ? "alta" : "baixa") + ": so " + (bias > 0 ? "compras" : "vendas") + " no POI de 5m";
+    return { short: m.short, sym, allow, why: ascii(why) };
+  });
+}
+
+// the test order the owner asked for: the market and side where the agency's reading agrees most
+function testOrder(st, cfg, now) {
+  const today = new Date(now - 3 * HOUR).toISOString().slice(0, 10);       // Brasilia date
+  if (cfg.testOrder !== today || st.desk.today.closed) return null;
+  let best = null;
+  const missing = missingAtBroker(st);
+  st.markets.filter(m => m.trade && m.open && !missing[m.short]).forEach(m => {
+    const c = st.charts[m.short];
+    if (!c) return;
+    let score = 2 * (m.macro ? m.macro.bias : 0), parts = [];
+    Object.keys(c.reading).forEach(k => {
+      const r = c.reading[k];
+      score += 0.5 * r.flow + (r.radar ? r.radar.dir * r.radar.force / 100 : 0);
+      if (r.radar) parts.push(k + " " + r.radar.code);
+    });
+    if (!best || Math.abs(score) > Math.abs(best.score)) best = { m, score, parts };
+  });
+  if (!best || !best.score) return null;
+  const m = best.m, frac = Math.min(0.02, Math.max(0.001, (m.atr || 0) / m.price));
+  return { id: "TESTE-" + today, short: m.short, sym: MT5_SYMBOL[m.short], side: best.score > 0 ? "BUY" : "SELL", frac: +frac.toFixed(5),
+           risk: cfg.stopUsd, exp: Math.floor(now / 1000) + 3 * 3600, tag: "TESTE",
+           why: ascii("ordem de teste pedida pelo dono; nota " + best.score.toFixed(1) + " (macro 1h, estrutura e Radar: " + best.parts.join(", ") + ")") };
+}
+
+// the signed message the robot reads: the plan, valid for 4 hours, and the orders
+function commandText(plan, orders, now, key) {
+  const t = Math.floor(now / 1000), rows = ["T " + t + " " + (t + 4 * 3600)];
+  plan.forEach(p => rows.push(["PLAN", p.sym, p.allow, p.why].join(" ")));
+  orders.forEach(o => rows.push(["ORD", o.id, o.sym, o.side, o.frac, o.risk, o.exp, o.tag, o.why].join(" ")));
+  const rest = rows.join("\n");
+  return "PV1 " + crypto.createHash("sha256").update(key + "\n" + rest).digest("hex") + "\n" + rest;
+}
+
+async function sendCommands(text) {
+  const r = await fetch("https://ntfy.sh/" + MT5_CMD_TOPIC, { method: "POST", body: text, headers: { "Content-Type": "text/plain" } });
+  if (!r.ok) throw new Error("ntfy " + r.status);
 }
 
 // ---------------------------------------------------------------- main
@@ -622,6 +720,18 @@ async function main() {
   st.desk.compare.sim.curve = st.desk.compare.sim.curve.slice(-80);
   st.climate = climate(glob);
   st.research = { events: reactions(headlines, series15), ranking: rank(markets) };
+  // the agency decides: plan and orders for the robot on MT5, signed with the owner's key
+  const plan = deskPlan(st, cfg, now), orders = [], t1 = testOrder(st, cfg, now);
+  if (t1) orders.push(t1);
+  st.command = { at: now, plan, orders, sent: false, note: "" };
+  const key = process.env.MT5_KEY || "";
+  if (args.includes("--send-orders")) {
+    if (!key) st.command.note = "sem a chave MT5_KEY: plano calculado mas nao enviado";
+    else {
+      try { await sendCommands(commandText(plan, orders, now, key)); st.command.sent = true; }
+      catch (e) { st.command.note = "falha ao enviar: " + e.message; errors.push("ordens: " + e.message); }
+    }
+  } else st.command.note = "modo leitura: plano nao enviado ao robo";
   st.meeting = meeting(st, now);
   st.agents = agentReports(st);
 
@@ -641,4 +751,5 @@ async function main() {
 }
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
-module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity, radarAt, cleanMt5, mt5Robot };
+module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity, radarAt, cleanMt5, mt5Robot,
+                   deskPlan, testOrder, commandText, explainRefusal };

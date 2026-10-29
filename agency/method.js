@@ -324,6 +324,11 @@
                    limit: true, poi: { sweepT: b[s].t, level: lvl, low: ext, pullLow: PL.p, top: PH.p, zone: [PL.p, zoneHi] } };
         }
       }
+      // the data ends while the limit order still waits: an order the desk can still place
+      if (k >= b.length && k <= j + o.entryLife)
+        return { key: PL.i + ":" + j, i: j, pending: true, expiresT: b[j].t + (o.entryLife + 1) * (b[j].t - b[j - 1].t), dir: 1,
+                 entry: zoneHi, stop: stop, take: zoneHi + o.rr * plan, risk: plan, limit: true,
+                 poi: { sweepT: b[s].t, level: lvl, low: ext, pullLow: PL.p, top: PH.p, zone: [PL.p, zoneHi] } };
       return null;
     }
     return null;
@@ -347,8 +352,10 @@
     }
     var buys = poiBuys(b, o, gate);
     var sells = poiBuys(mirror(b), o, gate ? function (j) { return -gate(j); } : null).map(flipTrade);
-    var trades = buys.concat(sells).sort(function (x, y) { return x.entryIdx - y.entryIdx; });
-    return { trades: trades };
+    var all = buys.concat(sells);
+    var trades = all.filter(function (t) { return !t.pending; }).sort(function (x, y) { return x.entryIdx - y.entryIdx; });
+    // POIs confirmed in the last candles whose limit order is still waiting for price to come back
+    return { trades: trades, pending: all.filter(function (t) { return t.pending; }) };
   }
 
   // stop or target, whichever is hit first (both in one candle: the stop). No time exit.

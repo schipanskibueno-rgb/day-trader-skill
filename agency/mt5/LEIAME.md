@@ -62,6 +62,26 @@ computador ligado. Ha dois jeitos usando so o tablet na maior parte do tempo:
 2. No tablet, instale o app **Windows App / Remote Desktop** e conecte no VPS.
 3. Faca os passos 1 a 4 do Jeito A dentro do VPS e deixe o MT5 aberto.
 
+## A agencia decide, o robo executa (versao 2.20)
+
+Com `InpFollowAgency = true` (padrao) o robo so opera dentro do **plano da
+agencia**: a cada 3 horas a agencia diz, para cada ativo, "so compras", "so
+vendas" ou "nao operar", com o motivo (macro 1h, Radar contra, mesa fechada,
+ativo inexistente). O plano vale 4 horas; sem plano valido o robo nao opera.
+A agencia tambem pode mandar **ordens diretas** (por exemplo, a ordem de
+teste), sempre com stop em fracao do preco e alvo 3R.
+
+As mensagens chegam pelo canal `pregao-virtual-a224d58b32c0-cmd` e sao
+**assinadas** com a chave da agencia. O robo so aceita mensagens com a chave
+digitada em **InpAgencyKey** (nas Entradas do robo). Mesmo com ordem da
+agencia, o robo mantem os proprios limites: so conta demo, so os ativos de
+InpSymbols, no maximo InpStopMoney por operacao, 2 stops por dia, uma
+posicao por ativo e conferencia de margem. O lote e calculado pela propria
+corretora (quanto se perde por lote ate o stop) e reduzido se faltar margem.
+
+Cada resultado (executada, recusada pelo robo ou pela corretora, com o
+motivo em portugues) volta para a agencia pela ponte abaixo.
+
 ## Ponte com a agencia (versao 2.10)
 
 O robo envia um resumo da conta para a agencia 3D: saldo, posicoes, ordens

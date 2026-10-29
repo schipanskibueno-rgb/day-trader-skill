@@ -20,7 +20,7 @@
 //| Sells are the mirror image. DEMO accounts only by default.       |
 //+------------------------------------------------------------------+
 #property copyright "Pregao Virtual"
-#property version   "2.10"
+#property version   "2.20"
 #property description "Versao 2 da agencia Pregao Virtual: POI no M5 depois de limpar a liquidez do M15, alinhado ao macro H1. Stop fixo, alvo 3R, maximo de 2 stops por dia. So conta demo por padrao."
 
 #include <Trade\Trade.mqh>
@@ -45,6 +45,10 @@ input double InpClimaxSpread = 1.2;      // Tamanho que define o controle (ATR, 
 input bool   InpBridge       = true;     // Enviar o resumo da conta para a agencia (precisa liberar https://ntfy.sh)
 input string InpBridgeTopic  = "pregao-virtual-a224d58b32c0"; // Canal da ponte com a agencia
 input int    InpBridgeMinutes = 15;      // Enviar o resumo a cada (minutos)
+input bool   InpFollowAgency = true;     // A agencia decide: so operar dentro do plano dela e executar as ordens dela
+input string InpAgencyKey    = "";       // Chave da agencia (o seu filho passa; sem ela o robo nao opera)
+input string InpCmdTopic     = "pregao-virtual-a224d58b32c0-cmd"; // Canal de ordens da agencia
+input int    InpPollSeconds  = 60;       // Ler as ordens da agencia a cada (segundos)
 input bool   InpWyckoffRange = true;     // Wyckoff so em lateralizacao: varredura na borda exige volume baixo (spring)
 input int    InpRangeBars    = 32;       // Candles M15 da lateralizacao (8 horas)
 input double InpRangeAtr     = 4.0;      // Altura maxima da lateralizacao (ATR do M15)
@@ -68,6 +72,15 @@ string   g_status[];
 datetime g_lastSend = 0;
 bool     g_dirty = true;
 string   g_bridge = "ponte com a agencia: aguardando o primeiro envio";
+// the agency's plan for each symbol (BUY, SELL, BOTH or NONE), valid until g_planExp (UTC)
+string   g_allow[];
+string   g_allowWhy[];
+long     g_planT = 0, g_planExp = 0;
+datetime g_lastPoll = 0;
+bool     PlanValid();
+bool     Allowed(const int s, const int d);
+string   g_agency = "agencia: aguardando o primeiro plano";
+string   g_res[];                                                      // what happened to the agency's orders
 
 // a confirmed POI, in the buy direction (prices of the mirrored chart for sells)
 struct Poi
@@ -398,21 +411,65 @@ void ManageOrders(const bool deskOpen)
      }
   }
 
-// lots so that the stop costs InpStopMoney; 0 if the minimum lot would cost more
-double LotsFor(const string sym, const double riskPrice)
+// what the broker's refusal means, in plain words
+string Explain(const uint code)
   {
-   double tickSize = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
-   double tickValue = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE_LOSS);
-   if(tickValue <= 0) tickValue = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE);
-   if(tickSize <= 0 || tickValue <= 0 || riskPrice <= 0) return 0;
-   double lossPerLot = riskPrice / tickSize * tickValue;
+   switch(code)
+     {
+      case 10019: return "sem margem livre suficiente na conta para esse lote";
+      case 10016: return "stop ou alvo perto demais do preco (minimo da corretora)";
+      case 10018: return "mercado fechado neste horario";
+      case 10027: return "Algotrading desligado no MetaTrader";
+      case 10026: return "negociacao automatica desligada pelo servidor";
+      case 10030: return "tipo de execucao nao aceito para esse ativo";
+      case 10014: return "volume (lote) invalido";
+      case 10015: return "preco invalido";
+      case 10017: return "negociacao desativada para esse ativo";
+      case 10004: case 10020: case 10021: return "preco mudou ou sem cotacao na hora do envio";
+      case 10006: return "ordem rejeitada pela corretora";
+     }
+   return "codigo " + IntegerToString(code);
+  }
+
+// lots so that the stop costs `money`, measured by the broker itself; reduced to fit the free margin.
+// 0 (with the reason in why) when not even the minimum lot fits
+double LotsFor(const string sym, const int d, const double entry, const double stop, const double money, string &why)
+  {
+   why = "";
+   double pl = 0, lossPerLot = 0;
+   if(OrderCalcProfit(d > 0 ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, sym, 1.0, entry, stop, pl) && pl < 0) lossPerLot = -pl;
+   else
+     {
+      double tickSize = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
+      double tickValue = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE_LOSS);
+      if(tickValue <= 0) tickValue = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE);
+      if(tickSize > 0 && tickValue > 0) lossPerLot = MathAbs(entry - stop) / tickSize * tickValue;
+     }
+   if(lossPerLot <= 0) { why = "sem dados do ativo para calcular o lote"; return 0; }
    double step = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP);
    double minLot = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN);
    double maxLot = SymbolInfoDouble(sym, SYMBOL_VOLUME_MAX);
-   double lots = InpStopMoney / lossPerLot;
-   if(step > 0) lots = MathFloor(lots / step) * step;
-   if(lots < minLot) return 0;
-   return MathMin(lots, maxLot);
+   if(step <= 0) step = minLot;
+   double lots = MathFloor(money / lossPerLot / step) * step;
+   if(lots < minLot)
+     {
+      why = StringFormat("o lote minimo (%.2f) perderia %.2f no stop, mais que o limite de %.2f", minLot, minLot * lossPerLot, money);
+      return 0;
+     }
+   lots = MathMin(lots, maxLot);
+   double margin = 0, free = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+   if(OrderCalcMargin(d > 0 ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, sym, lots, entry, margin) && margin > 0.8 * free)
+     {
+      double fit = MathFloor(lots * 0.8 * free / margin / step) * step;
+      if(fit < minLot)
+        {
+         why = StringFormat("margem insuficiente: %.2f lotes pedem %.2f de margem e a conta tem %.2f livre", lots, margin, free);
+         return 0;
+        }
+      why = StringFormat("lote reduzido de %.2f para %.2f para caber na margem livre (%.2f)", lots, fit, free);
+      lots = fit;
+     }
+   return NormalizeDouble(lots, 2);
   }
 
 // places the order for a POI in direction d (prices already back on the real chart)
@@ -431,8 +488,9 @@ void Place(const int s, const int d, const double zone, const double stop, const
    if(risk <= 0) { g_status[s] = sym + ": preco ja passou do stop do POI"; return; }
    if(tk.ask - tk.bid > InpMaxCostR * risk) { g_status[s] = sym + ": spread caro demais para o risco"; return; }
    if(risk <= minDist || (!atMarket && MathAbs(now - entry) <= minDist)) { g_status[s] = sym + ": distancia menor que o minimo da corretora"; return; }
-   double lots = LotsFor(sym, risk);
-   if(lots <= 0) { g_status[s] = sym + ": lote minimo arriscaria mais que o stop definido"; return; }
+   string lotWhy;
+   double lots = LotsFor(sym, d, entry, stop, InpStopMoney, lotWhy);
+   if(lots <= 0) { g_status[s] = sym + ": POI recusado, " + lotWhy; return; }
    double sl = NormalizeDouble(stop, digits), tp = NormalizeDouble(entry + d * InpRR * risk, digits), px = NormalizeDouble(entry, digits);
    string comment = "PregaoVirtual2 POI 3R";
    trade.SetTypeFillingBySymbol(sym);
@@ -443,7 +501,7 @@ void Place(const int s, const int d, const double zone, const double stop, const
    ok = ok && (trade.ResultRetcode() == TRADE_RETCODE_DONE || trade.ResultRetcode() == TRADE_RETCODE_PLACED);
    g_status[s] = sym + ": " + (ok ? (d > 0 ? "COMPRA " : "VENDA ") + (atMarket ? "a mercado " : "limitada em " + DoubleToString(px, digits) + " ") +
                  DoubleToString(lots, 2) + " lotes, stop " + DoubleToString(sl, digits) + ", alvo " + DoubleToString(tp, digits) + "; " + why
-                 : "ordem recusada: " + trade.ResultRetcodeDescription());
+                 : "ordem recusada: " + Explain(trade.ResultRetcode()) + " (" + trade.ResultRetcodeDescription() + ")") + (lotWhy != "" ? "; " + lotWhy : "");
    Print(g_status[s]);
   }
 
@@ -460,9 +518,11 @@ void Evaluate(const int s, const bool deskOpen)
    int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
    int sweeps = 0;
    Poi p;
+   if(InpFollowAgency && !PlanValid()) { g_status[s] = sym + ": " + macro + "; sem plano valido da agencia, nao opera"; return; }
    for(int d = 1; d >= -1; d -= 2)
      {
       if(InpMacroFilter && bias != d) continue;
+      if(InpFollowAgency && !Allowed(s, d)) continue;                // the agency did not allow this side
       bool found;
       if(d > 0) found = FindPoi(b, n, h, nh, p, sweeps);
       else { Mirror(b, n, mb); Mirror(h, nh, mh); found = FindPoi(mb, n, mh, nh, p, sweeps); }
@@ -476,12 +536,213 @@ void Evaluate(const int s, const bool deskOpen)
      }
    if(HasPosition(sym)) g_status[s] = sym + ": posicionado (stop e alvo 3R na corretora)";
    else if(HasOrder(sym)) g_status[s] = sym + ": ordem limitada aguardando o preco voltar a zona";
-   else g_status[s] = sym + ": " + macro + StringFormat(", %d varrida(s) recente(s), aguardando POI", sweeps);
+   else g_status[s] = sym + ": " + macro + StringFormat(", %d varrida(s) recente(s), aguardando POI", sweeps) +
+                      (InpFollowAgency ? "; plano da agencia: " + g_allow[s] + (g_allowWhy[s] != "" ? " (" + g_allowWhy[s] + ")" : "") : "");
+  }
+
+//------------------------------------------------------------------ orders from the agency
+// The agency (the cloud brain) posts signed text messages to InpCmdTopic:
+//   PV1 <sha256 of key + "\n" + the rest>
+//   T <unix utc> <valid until, unix utc>
+//   PLAN <symbol> <BUY|SELL|BOTH|NONE> <why>
+//   ORD <id> <symbol> <BUY|SELL> <stop distance, fraction of price> <risk money> <valid until> <tag> <why>
+// The robot keeps its own limits: demo only, symbols of InpSymbols, at most InpStopMoney per trade,
+// 2 stops a day, one position per symbol, margin check.
+
+bool PlanValid() { return InpAgencyKey != "" && g_planExp > (long)TimeGMT(); }
+
+bool Allowed(const int s, const int d)
+  {
+   if(!PlanValid()) return false;
+   string a = g_allow[s];
+   return a == "BOTH" || (d > 0 && a == "BUY") || (d < 0 && a == "SELL");
+  }
+
+string Sha256Hex(const string text)
+  {
+   uchar src[], key[], res[];
+   int n = StringToCharArray(text, src, 0, WHOLE_ARRAY, CP_UTF8);
+   if(n > 0) ArrayResize(src, n - 1);
+   if(CryptEncode(CRYPT_HASH_SHA256, src, key, res) <= 0) return "";
+   string h = "";
+   for(int i = 0; i < ArraySize(res); i++) h += StringFormat("%02x", res[i]);
+   return h;
+  }
+
+int HexVal(const ushort c)
+  {
+   if(c >= '0' && c <= '9') return c - '0';
+   if(c >= 'a' && c <= 'f') return c - 'a' + 10;
+   if(c >= 'A' && c <= 'F') return c - 'A' + 10;
+   return 0;
+  }
+
+// reads a JSON string starting right after its opening quote; returns the index after the closing quote
+int ReadJsonString(const string sx, int i, string &out)
+  {
+   out = "";
+   int n = StringLen(sx);
+   while(i < n)
+     {
+      ushort c = StringGetCharacter(sx, i);
+      if(c == '"') return i + 1;
+      if(c == '\\' && i + 1 < n)
+        {
+         ushort e = StringGetCharacter(sx, i + 1);
+         if(e == 'n') out += "\n";
+         else if(e == 't') out += " ";
+         else if(e == 'r') { }
+         else if(e == 'u' && i + 5 < n)
+           {
+            int v = 0;
+            for(int k = 2; k < 6; k++) v = v * 16 + HexVal(StringGetCharacter(sx, i + k));
+            out += ShortToString((ushort)v);
+            i += 6;
+            continue;
+           }
+         else out += ShortToString(e);
+         i += 2;
+         continue;
+        }
+      out += ShortToString(c);
+      i++;
+     }
+   return -1;
+  }
+
+void Remember(const string line)
+  {
+   int n = ArraySize(g_res);
+   if(n >= 8) { for(int i = 0; i < n - 1; i++) g_res[i] = g_res[i + 1]; g_res[n - 1] = line; }
+   else { ArrayResize(g_res, n + 1); g_res[n] = line; }
+   Print("agencia: ", line);
+  }
+
+int SymIndex(const string sym)
+  {
+   for(int i = 0; i < ArraySize(g_syms); i++) if(g_syms[i] == sym) return i;
+   return -1;
+  }
+
+// executes one order of the agency (market order, stop as a fraction of the price, target InpRR)
+void AgencyOrder(const string &f[], const bool deskOpen)
+  {
+   if(ArraySize(f) < 8) return;
+   string id = f[1], sym = f[2], side = f[3], tag = f[7];
+   string why = "";
+   for(int i = 8; i < ArraySize(f); i++) why += (why == "" ? "" : " ") + f[i];
+   string gv = "PVo_" + StringSubstr(id, 0, 50);
+   if(GlobalVariableCheck(gv)) return;                                // already handled
+   long exp = StringToInteger(f[6]);
+   if(exp < (long)TimeGMT()) return;                                  // too late: ignore quietly
+   GlobalVariableSet(gv, (double)TimeGMT());
+   int s = SymIndex(sym);
+   int d = side == "BUY" ? 1 : side == "SELL" ? -1 : 0;
+   double frac = StringToDouble(f[4]), money = MathMin(StringToDouble(f[5]), InpStopMoney);
+   string head = id + " " + tag + " " + side + " " + sym + ": ";
+   if(s < 0 || !g_ok[s] || d == 0 || frac <= 0 || frac > 0.05 || money <= 0) { Remember(head + "RECUSADA pelo robo: ordem fora dos limites (ativo, lado ou stop)"); return; }
+   if(!deskOpen) { Remember(head + "RECUSADA pelo robo: mesa fechada (2 stops hoje)"); return; }
+   if(HasPosition(sym) || HasOrder(sym)) { Remember(head + "RECUSADA pelo robo: ja existe posicao ou ordem nesse ativo"); return; }
+   MqlTick tk;
+   if(!SymbolInfoTick(sym, tk) || tk.bid <= 0) { Remember(head + "RECUSADA pelo robo: sem cotacao agora"); return; }
+   int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+   double entry = d > 0 ? tk.ask : tk.bid;
+   double stop = entry - d * frac * entry, risk = MathAbs(entry - stop);
+   double minDist = SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL) * SymbolInfoDouble(sym, SYMBOL_POINT);
+   if(risk <= minDist) { Remember(head + "RECUSADA pelo robo: stop menor que a distancia minima da corretora"); return; }
+   if(tk.ask - tk.bid > InpMaxCostR * risk) { Remember(head + "RECUSADA pelo robo: spread caro demais para esse stop"); return; }
+   string lotWhy;
+   double lots = LotsFor(sym, d, entry, stop, money, lotWhy);
+   if(lots <= 0) { Remember(head + "RECUSADA pelo robo: " + lotWhy); return; }
+   double sl = NormalizeDouble(stop, digits), tp = NormalizeDouble(entry + d * InpRR * risk, digits);
+   trade.SetTypeFillingBySymbol(sym);
+   string comment = "PV2 agencia " + StringSubstr(tag, 0, 10);
+   bool ok = d > 0 ? trade.Buy(lots, sym, 0, sl, tp, comment) : trade.Sell(lots, sym, 0, sl, tp, comment);
+   uint rc = trade.ResultRetcode();
+   ok = ok && (rc == TRADE_RETCODE_DONE || rc == TRADE_RETCODE_PLACED);
+   if(ok) Remember(head + StringFormat("EXECUTADA %.2f lotes a %s, stop %s, alvo %s", lots, DoubleToString(trade.ResultPrice() > 0 ? trade.ResultPrice() : entry, digits),
+                                       DoubleToString(sl, digits), DoubleToString(tp, digits)) + (lotWhy != "" ? "; " + lotWhy : "") + (why != "" ? "; motivo: " + why : ""));
+   else Remember(head + "RECUSADA pela corretora: " + Explain(rc) + " (" + trade.ResultRetcodeDescription() + ")");
+   g_dirty = true;
+  }
+
+// reads the agency's channel, keeps the newest valid plan and executes new orders
+void PollAgency(const bool deskOpen)
+  {
+   if(!InpFollowAgency) return;
+   if(InpAgencyKey == "") { g_agency = "agencia: falta a chave da agencia nas Entradas do robo (InpAgencyKey)"; return; }
+   if(g_lastPoll > 0 && TimeLocal() - g_lastPoll < InpPollSeconds) return;
+   g_lastPoll = TimeLocal();
+   char data[], res[];
+   string resHeaders;
+   ResetLastError();
+   int code = WebRequest("GET", "https://ntfy.sh/" + InpCmdTopic + "/json?poll=1&since=6h", "", 5000, data, res, resHeaders);
+   if(code != 200)
+     {
+      g_agency = GetLastError() == 4014 ? "agencia: libere https://ntfy.sh em Ferramentas > Opcoes > Expert Advisors"
+                                        : StringFormat("agencia: nao consegui ler as ordens (codigo %d), tento de novo em %d s", code, InpPollSeconds);
+      return;
+     }
+   string body = CharArrayToString(res, 0, WHOLE_ARRAY, CP_UTF8);
+   string lines[];
+   int nl = StringSplit(body, '\n', lines);
+   int good = 0, bad = 0;
+   for(int li = 0; li < nl; li++)
+     {
+      int at = StringFind(lines[li], "\"message\":\"");
+      if(at < 0) continue;
+      string msg;
+      if(ReadJsonString(lines[li], at + 11, msg) < 0) continue;
+      int nlPos = StringFind(msg, "\n");
+      if(nlPos < 0 || StringSubstr(msg, 0, 4) != "PV1 ") continue;
+      string sig = StringSubstr(msg, 4, nlPos - 4), rest = StringSubstr(msg, nlPos + 1);
+      if(Sha256Hex(InpAgencyKey + "\n" + rest) != sig) { bad++; continue; }   // not signed with our key: ignore
+      good++;
+      string rows[];
+      int nr = StringSplit(rest, '\n', rows);
+      long t = 0, exp = 0;
+      for(int r = 0; r < nr; r++)
+        {
+         string f[];
+         int nf = StringSplit(rows[r], ' ', f);
+         if(nf >= 3 && f[0] == "T") { t = StringToInteger(f[1]); exp = StringToInteger(f[2]); }
+        }
+      if(t > g_planT && exp > (long)TimeGMT())
+        {
+         g_planT = t; g_planExp = exp;
+         for(int i = 0; i < ArraySize(g_allow); i++) { g_allow[i] = "NONE"; g_allowWhy[i] = "fora do plano"; }
+         for(int r = 0; r < nr; r++)
+           {
+            string f[];
+            int nf = StringSplit(rows[r], ' ', f);
+            if(nf >= 3 && f[0] == "PLAN")
+              {
+               int si = SymIndex(f[1]);
+               if(si < 0) continue;
+               g_allow[si] = f[2];
+               string w = "";
+               for(int k = 3; k < nf; k++) w += (w == "" ? "" : " ") + f[k];
+               g_allowWhy[si] = StringSubstr(w, 0, 80);
+              }
+           }
+        }
+      for(int r = 0; r < nr; r++)
+        {
+         string f[];
+         int nf = StringSplit(rows[r], ' ', f);
+         if(nf >= 8 && f[0] == "ORD") AgencyOrder(f, deskOpen);
+        }
+     }
+   string plan = "";
+   for(int i = 0; i < ArraySize(g_syms); i++) plan += (plan == "" ? "" : ", ") + g_syms[i] + " " + g_allow[i];
+   g_agency = PlanValid() ? "agencia: plano valido ate " + TimeToString((datetime)g_planExp, TIME_MINUTES) + " UTC (" + plan + ")"
+                          : good == 0 && bad > 0 ? "agencia: ordens com chave errada; confira InpAgencyKey"
+                          : "agencia: sem plano valido agora, o robo espera";
   }
 
 //------------------------------------------------------------------ the bridge to the agency
 // A short JSON summary of this robot's account goes to an ntfy.sh channel; the agency's
-// reading every 3 hours picks it up. Nothing comes back: the agency never sends orders.
+// reading every 3 hours picks it up. The agency answers on InpCmdTopic (see PollAgency).
 
 string Js(const string s)
   {
@@ -555,7 +816,25 @@ string Snapshot(const int stops, const bool deskOpen)
    j += ",\"deals\":[" + a + "],\"n\":" + IntegerToString(n) + ",\"w\":" + IntegerToString(wins) + ",\"sum\":" + DoubleToString(sum, 2);
    a = "";
    for(int s = 0; s < ArraySize(g_status); s++) a += (a == "" ? "" : ",") + Js(g_status[s]);
-   j += ",\"st\":[" + a + "]}";
+   j += ",\"st\":[" + a + "]";
+   // what happened to the agency's orders, and orders the broker rejected or cancelled
+   a = "";
+   for(int r = MathMax(0, ArraySize(g_res) - 5); r < ArraySize(g_res); r++) a += (a == "" ? "" : ",") + Js(g_res[r]);
+   j += ",\"res\":[" + a + "],\"agency\":" + Js(g_agency);
+   a = "";
+   int shownRej = 0;
+   if(HistorySelect(TimeCurrent() - 3 * 86400, TimeCurrent() + 60))
+      for(int k = HistoryOrdersTotal() - 1; k >= 0 && shownRej < 3; k--)
+        {
+         ulong o = HistoryOrderGetTicket(k);
+         if(HistoryOrderGetInteger(o, ORDER_MAGIC) != InpMagic) continue;
+         long state = HistoryOrderGetInteger(o, ORDER_STATE);
+         if(state != ORDER_STATE_REJECTED && state != ORDER_STATE_CANCELED && state != ORDER_STATE_EXPIRED) continue;
+         shownRej++;
+         a += (a == "" ? "" : ",") + "{\"s\":" + Js(HistoryOrderGetString(o, ORDER_SYMBOL)) + ",\"st\":" + IntegerToString(state) +
+              ",\"c\":" + Js(HistoryOrderGetString(o, ORDER_COMMENT)) + ",\"t\":" + IntegerToString((long)HistoryOrderGetInteger(o, ORDER_TIME_DONE) - off) + "}";
+        }
+   j += ",\"rej\":[" + a + "]}";
    return j;
   }
 
@@ -592,12 +871,15 @@ int OnInit()
    int n = StringSplit(InpSymbols, ',', g_syms);
    if(n <= 0) return INIT_PARAMETERS_INCORRECT;
    ArrayResize(g_ok, n); ArrayResize(g_lastBar, n); ArrayResize(g_status, n);
+   ArrayResize(g_allow, n); ArrayResize(g_allowWhy, n);
    for(int i = 0; i < n; i++)
      {
       StringTrimLeft(g_syms[i]);
       StringTrimRight(g_syms[i]);
       g_ok[i] = SymbolSelect(g_syms[i], true);
       g_lastBar[i] = 0;
+      g_allow[i] = "NONE";
+      g_allowWhy[i] = "aguardando o plano da agencia";
       g_status[i] = g_syms[i] + (g_ok[i] ? ": aguardando o proximo candle de 5m" : ": ativo nao existe nesta corretora");
      }
    trade.SetExpertMagicNumber((ulong)InpMagic);
@@ -623,6 +905,7 @@ void OnTimer()
   {
    int stops = StopsToday();
    bool deskOpen = stops < InpMaxStopsDay;
+   PollAgency(deskOpen);
    ManageOrders(deskOpen);
    for(int s = 0; s < ArraySize(g_syms); s++)
      {
@@ -638,6 +921,8 @@ void OnTimer()
                 "\n" + Blocks() + "\n";
    for(int s = 0; s < ArraySize(g_syms); s++) txt += g_status[s] + "\n";
    Bridge(stops, deskOpen);
+   if(InpFollowAgency) txt += g_agency + "\n";
+   if(ArraySize(g_res) > 0) txt += "ultima ordem da agencia: " + g_res[ArraySize(g_res) - 1] + "\n";
    if(InpBridge) txt += g_bridge + "\n";
    Comment(txt);
   }
