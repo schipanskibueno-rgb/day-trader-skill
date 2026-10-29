@@ -24,6 +24,8 @@ const M = require(path.join(__dirname, "method.js"));
 const RADAR = require(path.join(__dirname, "radar-engine.js"));
 const RADAR_URL = "https://claude.ai/artifact/WE7tnuyZmu3in4q1JCxetr";
 const RADAR_NAME = { BTC: "BTC", XAU: "OURO" };   // how the Radar page names the desk's markets
+// the MT5 robot posts a summary of its demo account to this ntfy.sh channel (kept 12 hours there)
+const MT5_TOPIC = "pregao-virtual-a224d58b32c0";
 
 const FOUNDED = "2026-10-27";          // the paper desk trades from this day on
 const DEFAULTS = { capital: 5000, stopUsd: 50, maxStopsPerDay: 2, rr: 3, block: 25 };
@@ -130,6 +132,41 @@ async function candles2m(m, now) {
 async function candles(m, interval) {
   if (m.src === "binance") return binance(m.id, interval, interval === "5m" ? 18 : interval === "15m" ? 6 : 18);
   return yahoo(m.id, interval, interval === "1h" ? "730d" : "60d");
+}
+
+// ---------------------------------------------------------------- the MT5 robot
+
+// the last summary the robot sent; anyone who knows the channel can post to it, so every field is checked
+function cleanMt5(raw, now) {
+  const num = v => (typeof v === "number" && isFinite(v) ? v : null);
+  const str = (v, n) => (typeof v === "string" ? v.replace(/[^\x20-\x7e]/g, "").slice(0, n || 140) : "");
+  const list = (a, n) => (Array.isArray(a) ? a.slice(0, n) : []);
+  const leg = x => ({ s: str(x.s, 20), d: x.d === 1 ? 1 : -1, lot: num(x.lot), p: num(x.p), sl: num(x.sl), tp: num(x.tp),
+                      pl: num(x.pl), t: num(x.t) === null ? null : x.t * 1000 });
+  const t = num(raw.t);
+  if (raw.v !== 1 || t === null || t * 1000 > now + 10 * 60000) return null;
+  return { connected: true, at: t * 1000, acc: num(raw.acc), srv: str(raw.srv, 40), demo: raw.demo === true, cur: str(raw.cur, 8),
+           bal: num(raw.bal), eq: num(raw.eq), stops: num(raw.stops), open: raw.open === true, stop: num(raw.stop), algo: raw.algo === true,
+           pos: list(raw.pos, 10).map(leg), ord: list(raw.ord, 10).map(leg), deals: list(raw.deals, 10).map(leg),
+           n: num(raw.n), w: num(raw.w), sum: num(raw.sum), st: list(raw.st, 6).map(x => str(x)) };
+}
+
+async function mt5Robot(now, topic) {
+  try {
+    const txt = await getText("https://ntfy.sh/" + (topic || MT5_TOPIC) + "/json?poll=1&since=12h");
+    let best = null;
+    txt.split("\n").forEach(line => {
+      try {
+        const ev = JSON.parse(line);
+        if (ev.event !== "message") return;
+        const snap = cleanMt5(JSON.parse(ev.message), now);
+        if (snap && (!best || snap.at >= best.at)) best = snap;
+      } catch (e) { /* not a summary of the robot */ }
+    });
+    if (!best) return { connected: false, note: "nenhum resumo do robo nas ultimas 12 horas" };
+    best.stale = now - best.at > 60 * 60000;
+    return best;
+  } catch (e) { return { connected: false, note: "canal da ponte indisponivel" }; }
 }
 
 // ---------------------------------------------------------------- helpers
@@ -450,8 +487,13 @@ function meeting(st, now) {
     usd(st.profile.dailyRiskUsd) + " = " + fmt(st.profile.dailyRiskPct, 1) + "% de " + usd(st.config.capital) + " (" + st.profile.label + "). " +
     (closed ? "Dois stops hoje: mesa fechada ate " + new Date(D.today.reopenAt).toISOString().slice(11, 16) + " UTC." : "Stops hoje: " + D.today.stops + "/" + st.config.maxStopsPerDay + "."));
   const L0 = D.live;
+  const R5 = st.mt5;
   say("teo", "Corretora virtual desde " + FOUNDED.split("-").reverse().join("/") + ": " + usd(L0.equity) + " (" + (L0.pnl >= 0 ? "+" : "") + usd(L0.pnl) + "), " +
-    L0.open.length + " posicao(oes) aberta(s), " + L0.n + " encerrada(s)" + (D.today.trades ? ", " + D.today.trades + " hoje" : "") + ".");
+    L0.open.length + " posicao(oes) aberta(s), " + L0.n + " encerrada(s)" + (D.today.trades ? ", " + D.today.trades + " hoje" : "") + ". " +
+    (R5 && R5.connected
+      ? "Robo no MT5 (conta demo " + R5.acc + "): saldo " + fmt(R5.bal, 2) + " " + R5.cur + ", " + R5.pos.length + " posicao(oes), " + R5.ord.length +
+        " ordem(ns) limitada(s), " + (R5.n || 0) + " trade(s) encerrado(s)" + (R5.stale ? "; atencao: sem sinal do robo desde " + new Date(R5.at).toISOString().slice(11, 16) + " UTC" : "") + "."
+      : "Robo no MT5: " + (R5 ? R5.note : "sem dados") + "."));
   const lab = st.lab;
   say("caio", "Laboratorio (60 dias, 6 mercados): versao 1 em 15m " + sgn(lab.v1.exp) + "R em " + lab.v1.n + " trades; POI em 5m " +
     sgn(lab.v2.exp) + "R em " + lab.v2.n + "; POI com macro 1h (a da mesa) " + sgn(lab.v2macro.exp) + "R em " + lab.v2macro.n + ". Julgamos em blocos de 25 trades novos.");
@@ -558,6 +600,7 @@ async function main() {
   Object.keys(labRuns).forEach(k => { const d = M.desk(labRuns[k], deskCfg); lab[k] = { n: d.n, win: round(d.winRate * 100, 0), exp: round(d.expectancy, 2) }; });
 
   const headlines = (await news(now)).slice(0, 20);
+  const mt5 = await mt5Robot(now);
   const glob = await macro(GLOBAL), nat = await macro(NATIONAL);
   const st = {
     version: 3, updatedAt: now, nextAt: every ? now + every * HOUR : null, founded: FOUNDED,
@@ -569,7 +612,7 @@ async function main() {
       method: "v2", assets: MARKETS.filter(m => m.trade).map(m => m.short),
       compare: { trigger: "2m", live: deskSummary(L2, byId, cfg), sim: deskSummary(S2, byId, cfg) }
     },
-    charts,
+    charts, mt5,
     lab, people: PEOPLE
   };
   st.desk.sim.closed = st.desk.sim.closed.slice(0, 15);
@@ -598,4 +641,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
-module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity, radarAt };
+module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity, radarAt, cleanMt5, mt5Robot };

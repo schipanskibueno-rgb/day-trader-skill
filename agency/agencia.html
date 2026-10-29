@@ -371,6 +371,32 @@ function viewBroker(v) {
     ? "Dois stops no dia: o setor de trade foi embora e so volta a operar na proxima abertura (00:00 UTC). O setor de pesquisa segue estudando."
     : "Stop de " + usd(cfg.stopUsd) + " por operacao, alvo 3R (" + usd(cfg.stopUsd * 3) + ") sem fechamento antes, no maximo " + cfg.maxStopsPerDay + " stops por dia."));
   v.append(st);
+  // the robot running on the MT5 demo account, as it reported through the bridge
+  if (state.mt5) {
+    const R5 = state.mt5;
+    v.append(el("h3", null, "Robo no MetaTrader 5 (conta demo)"));
+    if (!R5.connected) v.append(el("p", "muted small", "Sem resumo do robo: " + (R5.note || "a ponte ainda nao foi ligada") + ". O robo envia a cada 15 minutos quando o endereco https://ntfy.sh esta liberado no MT5."));
+    else {
+      const k5 = el("div", "kpis");
+      k5.append(kpi("saldo · conta " + R5.acc, fmt(R5.bal, 2) + " " + R5.cur), kpi("patrimonio", fmt(R5.eq, 2) + " " + R5.cur, R5.eq >= R5.bal ? "pos" : "neg"),
+                kpi("trades encerrados", (R5.n || 0) + " (" + (R5.w || 0) + " ganhos)"), kpi("resultado do robo", (R5.sum >= 0 ? "+" : "") + fmt(R5.sum || 0, 2), (R5.sum || 0) >= 0 ? "pos" : "neg"));
+      v.append(k5);
+      v.append(el("p", "note", "Ultimo resumo: " + when(R5.at) + (R5.stale ? " · ATENCAO: sem sinal ha mais de 1 hora (computador desligado ou MT5 fechado?)" : "") +
+        " · Algotrading " + (R5.algo ? "ligado" : "DESLIGADO") + " · mesa " + (R5.open ? "aberta" : "fechada") + " · stops hoje " + (R5.stops || 0)));
+      const leg = (x, kind) => { const r = el("div", "row"), left = el("div");
+        left.append(el("div", null, (x.d > 0 ? "Compra " : "Venda ") + x.s + " · " + kind + (x.t ? " · " + when(x.t) : "")));
+        left.append(el("div", "small muted num", "lote " + fmt(x.lot, 2) + " · preco " + fmt(x.p, 2) + (x.sl ? " · stop " + fmt(x.sl, 2) : "") + (x.tp ? " · alvo " + fmt(x.tp, 2) : "")));
+        r.append(left); if (x.pl !== null && x.pl !== undefined) r.append(el("b", "num " + (x.pl >= 0 ? "pos" : "neg"), (x.pl >= 0 ? "+" : "") + fmt(x.pl, 2)));
+        return r; };
+      const rows5 = el("div", "rows");
+      R5.pos.forEach(x => rows5.append(leg(x, "aberta")));
+      R5.ord.forEach(x => rows5.append(leg(x, "ordem limitada esperando")));
+      R5.deals.forEach(x => rows5.append(leg(x, "encerrada")));
+      if (!rows5.childNodes.length) rows5.append(el("p", "muted small", "Nenhuma operacao do robo ainda. Ele espera a limpeza de liquidez e o POI."));
+      v.append(rows5);
+      R5.st.forEach(t => v.append(el("div", "small muted", t)));
+    }
+  }
   v.append(el("h3", null, "Corretora virtual · desde " + state.founded.split("-").reverse().join("/")));
   const k = el("div", "kpis");
   k.append(kpi("patrimonio (conta de " + usd(cfg.capital) + ")", usd(L.equity)), kpi("resultado", (L.pnl >= 0 ? "+" : "") + usd(L.pnl), L.pnl >= 0 ? "pos" : "neg"),

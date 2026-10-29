@@ -62,6 +62,26 @@ computador ligado. Ha dois jeitos usando so o tablet na maior parte do tempo:
 2. No tablet, instale o app **Windows App / Remote Desktop** e conecte no VPS.
 3. Faca os passos 1 a 4 do Jeito A dentro do VPS e deixe o MT5 aberto.
 
+## Ponte com a agencia (versao 2.10)
+
+O robo envia um resumo da conta para a agencia 3D: saldo, posicoes, ordens
+limitadas, ultimas 10 operacoes e o que ele esta vendo em cada ativo. Envia a
+cada 15 minutos e logo depois de cada operacao, pelo canal
+`pregao-virtual-a224d58b32c0` do ntfy.sh (gratuito, guarda 12 horas). A
+agencia le a cada 3 horas e mostra na aba Corretora. A agencia nunca manda
+ordens para o robo.
+
+Para funcionar, o MetaTrader precisa deixar o robo acessar o endereco:
+
+1. **Ferramentas > Opcoes > aba Expert Advisors**.
+2. Marque **Permitir WebRequest para os URL listados**.
+3. Clique na lista, adicione `https://ntfy.sh` e clique **OK**.
+
+A ultima linha do texto do robo no grafico diz se a ponte esta funcionando
+("resumo enviado as ...") ou o que falta. O canal e publico para quem souber o
+nome; os dados sao so da conta demo. Para desligar, mude `InpBridge` para
+false.
+
 ## Conferindo as primeiras ordens
 
 No canto do grafico o robo escreve o estado da mesa (aberta ou fechada, stops

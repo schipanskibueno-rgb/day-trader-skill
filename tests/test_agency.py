@@ -75,6 +75,13 @@ for (let i = 0; i < 80; i++) { const f = 100 + Math.sin(i / 3) * 0.5; flat.push(
 const oo = Object.assign({}, M.P, M.POI);
 out.range = [!!M.tradingRange(flat, M.atr(flat, 14), 79, oo), !!M.tradingRange(trend, M.atr(trend, 14), 79, oo)];
 
+// the MT5 bridge: a summary from the robot is kept, junk and future-dated posts are dropped
+const now = Date.UTC(2026, 9, 29, 12);
+const good = { v: 1, acc: 1, srv: "MetaQuotes-Demo", demo: true, t: now / 1000 - 60, cur: "USD", bal: 100, eq: 101, stops: 0, open: true, stop: 50,
+               algo: true, pos: [{ s: "BTCUSD", d: 1, lot: 0.1, p: 1, sl: 0.9, tp: 1.3, pl: 1, t: now / 1000 - 600 }], ord: [], deals: [], n: 0, w: 0, sum: 0, st: ["BTCUSD: ok"] };
+out.mt5 = [B.cleanMt5(good, now).pos[0].s, B.cleanMt5({ v: 2 }, now), B.cleanMt5(Object.assign({}, good, { t: now / 1000 + 3600 }), now),
+           B.cleanMt5(Object.assign({}, good, { srv: "<script>x" }), now).srv];
+
 out.tone = [B.tone("Ibovespa dispara e bate recorde"), B.tone("Bitcoin despenca com medo de recessao"), B.tone("Mercado aguarda decisao do Fed")];
 out.tags = B.tagsOf("Lula reeleito: dolar dispara", "Politica");
 out.climate = [B.climate([{id: "^GSPC", chg5d: 0.02}, {id: "^VIX", price: 14}, {id: "DX-Y.NYB", chg5d: -0.01}]).label,
@@ -131,6 +138,13 @@ class Agency(unittest.TestCase):
 
     def test_wyckoff_only_sees_sideways_structures(self):
         self.assertEqual(self.out["range"], [True, False])
+
+    def test_mt5_bridge_keeps_only_clean_summaries(self):
+        name, wrong_version, future, srv = self.out["mt5"]
+        self.assertEqual(name, "BTCUSD")
+        self.assertIsNone(wrong_version)
+        self.assertIsNone(future)
+        self.assertEqual(srv, "<script>x")   # plain text: the page writes it with textContent, never as HTML
 
     def test_brain_helpers(self):
         self.assertEqual(self.out["tone"], [1, -1, 0])

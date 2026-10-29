@@ -20,7 +20,7 @@
 //| Sells are the mirror image. DEMO accounts only by default.       |
 //+------------------------------------------------------------------+
 #property copyright "Pregao Virtual"
-#property version   "2.00"
+#property version   "2.10"
 #property description "Versao 2 da agencia Pregao Virtual: POI no M5 depois de limpar a liquidez do M15, alinhado ao macro H1. Stop fixo, alvo 3R, maximo de 2 stops por dia. So conta demo por padrao."
 
 #include <Trade\Trade.mqh>
@@ -42,6 +42,9 @@ input double InpMaxRiskAtr   = 4.0;      // Risco maximo (ATR do M5)
 input double InpMaxCostR     = 0.25;     // Spread maximo (fracao do risco)
 input double InpClimaxVol    = 2.0;      // Volume que define o controle (x media, H1)
 input double InpClimaxSpread = 1.2;      // Tamanho que define o controle (ATR, H1)
+input bool   InpBridge       = true;     // Enviar o resumo da conta para a agencia (precisa liberar https://ntfy.sh)
+input string InpBridgeTopic  = "pregao-virtual-a224d58b32c0"; // Canal da ponte com a agencia
+input int    InpBridgeMinutes = 15;      // Enviar o resumo a cada (minutos)
 input bool   InpWyckoffRange = true;     // Wyckoff so em lateralizacao: varredura na borda exige volume baixo (spring)
 input int    InpRangeBars    = 32;       // Candles M15 da lateralizacao (8 horas)
 input double InpRangeAtr     = 4.0;      // Altura maxima da lateralizacao (ATR do M15)
@@ -62,6 +65,9 @@ string   g_syms[];
 bool     g_ok[];
 datetime g_lastBar[];
 string   g_status[];
+datetime g_lastSend = 0;
+bool     g_dirty = true;
+string   g_bridge = "ponte com a agencia: aguardando o primeiro envio";
 
 // a confirmed POI, in the buy direction (prices of the mirrored chart for sells)
 struct Poi
@@ -473,6 +479,107 @@ void Evaluate(const int s, const bool deskOpen)
    else g_status[s] = sym + ": " + macro + StringFormat(", %d varrida(s) recente(s), aguardando POI", sweeps);
   }
 
+//------------------------------------------------------------------ the bridge to the agency
+// A short JSON summary of this robot's account goes to an ntfy.sh channel; the agency's
+// reading every 3 hours picks it up. Nothing comes back: the agency never sends orders.
+
+string Js(const string s)
+  {
+   string r = s;
+   StringReplace(r, "\\", "\\\\");
+   StringReplace(r, "\"", "\\\"");
+   StringReplace(r, "\n", " ");
+   if(StringLen(r) > 140) r = StringSubstr(r, 0, 140);
+   return "\"" + r + "\"";
+  }
+
+string Snapshot(const int stops, const bool deskOpen)
+  {
+   long off = (long)MathRound(((double)TimeTradeServer() - (double)TimeGMT()) / 1800.0) * 1800;   // server time -> UTC
+   string j = "{\"v\":1,\"acc\":" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) +
+              ",\"srv\":" + Js(AccountInfoString(ACCOUNT_SERVER)) +
+              ",\"demo\":" + (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_DEMO ? "true" : "false") +
+              ",\"t\":" + IntegerToString((long)TimeGMT()) +
+              ",\"cur\":" + Js(AccountInfoString(ACCOUNT_CURRENCY)) +
+              ",\"bal\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) +
+              ",\"eq\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) +
+              ",\"stops\":" + IntegerToString(stops) + ",\"open\":" + (deskOpen ? "true" : "false") +
+              ",\"stop\":" + DoubleToString(InpStopMoney, 2) +
+              ",\"algo\":" + (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) ? "true" : "false");
+   string a = "";
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      string sym = PositionGetSymbol(i);
+      if(sym == "" || PositionGetInteger(POSITION_MAGIC) != InpMagic) continue;
+      int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+      a += (a == "" ? "" : ",") + "{\"s\":" + Js(sym) + ",\"d\":" + (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY ? "1" : "-1") +
+           ",\"lot\":" + DoubleToString(PositionGetDouble(POSITION_VOLUME), 2) + ",\"p\":" + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), dg) +
+           ",\"sl\":" + DoubleToString(PositionGetDouble(POSITION_SL), dg) + ",\"tp\":" + DoubleToString(PositionGetDouble(POSITION_TP), dg) +
+           ",\"pl\":" + DoubleToString(PositionGetDouble(POSITION_PROFIT), 2) + ",\"t\":" + IntegerToString((long)PositionGetInteger(POSITION_TIME) - off) + "}";
+     }
+   j += ",\"pos\":[" + a + "]";
+   a = "";
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      ulong tk = OrderGetTicket(i);
+      if(tk == 0 || OrderGetInteger(ORDER_MAGIC) != InpMagic) continue;
+      string sym = OrderGetString(ORDER_SYMBOL);
+      int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+      long type = OrderGetInteger(ORDER_TYPE);
+      a += (a == "" ? "" : ",") + "{\"s\":" + Js(sym) + ",\"d\":" + (type == ORDER_TYPE_BUY_LIMIT || type == ORDER_TYPE_BUY_STOP ? "1" : "-1") +
+           ",\"lot\":" + DoubleToString(OrderGetDouble(ORDER_VOLUME_CURRENT), 2) + ",\"p\":" + DoubleToString(OrderGetDouble(ORDER_PRICE_OPEN), dg) +
+           ",\"sl\":" + DoubleToString(OrderGetDouble(ORDER_SL), dg) + ",\"tp\":" + DoubleToString(OrderGetDouble(ORDER_TP), dg) +
+           ",\"t\":" + IntegerToString((long)OrderGetInteger(ORDER_TIME_SETUP) - off) + "}";
+     }
+   j += ",\"ord\":[" + a + "]";
+   // closed trades of this robot: totals and the last 10
+   int n = 0, wins = 0, shown = 0;
+   double sum = 0;
+   a = "";
+   if(HistorySelect(0, TimeCurrent() + 60))
+      for(int k = HistoryDealsTotal() - 1; k >= 0; k--)
+        {
+         ulong d = HistoryDealGetTicket(k);
+         if(HistoryDealGetInteger(d, DEAL_MAGIC) != InpMagic || HistoryDealGetInteger(d, DEAL_ENTRY) != DEAL_ENTRY_OUT) continue;
+         double pl = DealResult(d);
+         n++; sum += pl; if(pl > 0) wins++;
+         if(shown >= 10) continue;
+         shown++;
+         string sym = HistoryDealGetString(d, DEAL_SYMBOL);
+         int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+         // the deal that closes a buy is a sell: report the direction of the trade
+         a += (a == "" ? "" : ",") + "{\"s\":" + Js(sym) + ",\"d\":" + (HistoryDealGetInteger(d, DEAL_TYPE) == DEAL_TYPE_SELL ? "1" : "-1") +
+              ",\"lot\":" + DoubleToString(HistoryDealGetDouble(d, DEAL_VOLUME), 2) + ",\"p\":" + DoubleToString(HistoryDealGetDouble(d, DEAL_PRICE), dg) +
+              ",\"pl\":" + DoubleToString(pl, 2) + ",\"t\":" + IntegerToString((long)HistoryDealGetInteger(d, DEAL_TIME) - off) + "}";
+        }
+   j += ",\"deals\":[" + a + "],\"n\":" + IntegerToString(n) + ",\"w\":" + IntegerToString(wins) + ",\"sum\":" + DoubleToString(sum, 2);
+   a = "";
+   for(int s = 0; s < ArraySize(g_status); s++) a += (a == "" ? "" : ",") + Js(g_status[s]);
+   j += ",\"st\":[" + a + "]}";
+   return j;
+  }
+
+// sends the summary every InpBridgeMinutes, and on the next timer after any trade
+void Bridge(const int stops, const bool deskOpen)
+  {
+   if(!InpBridge || InpBridgeTopic == "") return;
+   if(!g_dirty && TimeLocal() - g_lastSend < InpBridgeMinutes * 60) return;
+   if(g_dirty && g_lastSend > 0 && TimeLocal() - g_lastSend < 30) return;          // at most one send every 30 s
+   string json = Snapshot(stops, deskOpen);
+   char data[], res[];
+   string resHeaders;
+   int len = StringToCharArray(json, data, 0, WHOLE_ARRAY, CP_UTF8);
+   if(len > 0) ArrayResize(data, len - 1);                                         // drop the trailing zero
+   ResetLastError();
+   int code = WebRequest("POST", "https://ntfy.sh/" + InpBridgeTopic, "Content-Type: application/json\r\n", 5000, data, res, resHeaders);
+   int err = GetLastError();
+   g_lastSend = TimeLocal();
+   g_dirty = false;                                                               // a failure waits for the next interval
+   if(code == 200) g_bridge = "ponte com a agencia: resumo enviado as " + TimeToString(TimeLocal(), TIME_MINUTES);
+   else if(err == 4014) g_bridge = "ponte com a agencia DESLIGADA: libere https://ntfy.sh em Ferramentas > Opcoes > Expert Advisors";
+   else g_bridge = StringFormat("ponte com a agencia: envio falhou (codigo %d, erro %d), tenta de novo em %d min", code, err, InpBridgeMinutes);
+  }
+
 //------------------------------------------------------------------ events
 
 int OnInit()
@@ -507,6 +614,11 @@ void OnDeinit(const int reason)
 
 void OnTick() { }
 
+void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
+  {
+   g_dirty = true;                                                               // something changed: tell the agency
+  }
+
 void OnTimer()
   {
    int stops = StopsToday();
@@ -525,6 +637,8 @@ void OnTimer()
                 StringFormat("  |  stops hoje %d/%d  |  stop %s, alvo %.0fR", stops, InpMaxStopsDay, DoubleToString(InpStopMoney, 2), InpRR) +
                 "\n" + Blocks() + "\n";
    for(int s = 0; s < ArraySize(g_syms); s++) txt += g_status[s] + "\n";
+   Bridge(stops, deskOpen);
+   if(InpBridge) txt += g_bridge + "\n";
    Comment(txt);
   }
 //+------------------------------------------------------------------+
