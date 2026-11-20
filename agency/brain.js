@@ -38,10 +38,12 @@ const MT5_SYMBOL = { BTC: "BTCUSD", XAU: "XAUUSD" };
 const ALERT_TOPIC = process.env.ALERT_TOPIC || MT5_TOPIC + "-avisos";
 const MEET_EVERY = 3 * 3600 * 1000;    // the team meets every 3 hours, even when the readings are hourly
 // what the method did on past data (node agency/lab-variants.js, MT5 costs, stop US$ 50, target 3R; see agency/wyckoff.md)
-const BACKTEST = { at: "2026-10-29", stopUsd: 50, rows: [
+const BACKTEST = { at: "2026-11-20", stopUsd: 50, rows: [
+  { period: "ultimo ano", market: "9 criptomoedas, todas", trades: 443, expR: -0.02, note: "o que a conta virtual faz agora" },
+  { period: "ultimo ano", market: "9 criptomoedas, a favor da tendencia de 1h", trades: 86, expR: 0.22, note: "visto depois; nao foi aprendido a tempo" },
   { period: "ultimo ano", market: "BTC", trades: 65, expR: 0.37, note: "POI de 5m com o contexto de Wyckoff" },
-  { period: "ultimo ano", market: "Ouro", trades: 15, expR: -0.54, note: "60 dias de dados" },
-  { period: "ano anterior", market: "BTC e ouro", trades: 60, expR: -0.09, note: "teste fora da amostra" }] };
+  { period: "ano anterior", market: "BTC e ouro", trades: 60, expR: -0.09, note: "teste fora da amostra" }],
+  learning: "4 formas de aprender com os resultados testadas no ultimo ano: todas pioraram (o que perdia tendia a ganhar depois)" };
 
 const FOUNDED = "2026-10-27";          // the paper desk trades from this day on
 const DEFAULTS = { capital: 5000, stopUsd: 50, maxStopsPerDay: 2, rr: 3, block: 25, followMt5: true };
@@ -51,6 +53,10 @@ const CHART_TFS = [2, 5, 10, 15];       // minutes the agents consult before an 
 const V2 = { htfMs: MIN15, align: "bias", macroMs: HOUR, wyckoffContext: true };
 const V2_1H = { htfMs: 4 * HOUR, align: "bias", macroMs: 4 * HOUR, wyckoffContext: true };
 const V2_M2 = { htfMs: MIN15, align: "bias", macroMs: HOUR, wyckoffContext: true };   // the same POI with a 2-minute trigger, run side by side
+// the virtual account trades every POI of 5m on every market (no 1h filter, no daily limit: more trades
+// to learn from); whether the trade agrees with the 1h trend is recorded as one of its conditions
+const PAPER = { htfMs: MIN15, wyckoffContext: true };
+const PAPER_START = "2026-11-20";       // the virtual account with every market and the learning starts here
 const UA = { "User-Agent": "Mozilla/5.0 (agency-brain)" };
 
 const MARKETS = [
@@ -59,7 +65,16 @@ const MARKETS = [
   { id: "6E=F", short: "EUR", name: "Euro", label: "EUR/USD (futuro 6E)", src: "yahoo", fee: 0.00003, desk: "duda", dec: 5 },
   { id: "6B=F", short: "GBP", name: "Libra", label: "GBP/USD (futuro 6B)", src: "yahoo", fee: 0.00003, desk: "duda", dec: 4 },
   { id: "6J=F", short: "JPY", name: "Iene", label: "JPY/USD (futuro 6J)", src: "yahoo", fee: 0.00003, desk: "duda", dec: 7 },
-  { id: "6A=F", short: "AUD", name: "Dolar australiano", label: "AUD/USD (futuro 6A)", src: "yahoo", fee: 0.00003, desk: "duda", dec: 5 }];
+  { id: "6A=F", short: "AUD", name: "Dolar australiano", label: "AUD/USD (futuro 6A)", src: "yahoo", fee: 0.00003, desk: "duda", dec: 5 },
+  // more crypto for the virtual account: 24 hours a day, real volume (Binance)
+  { id: "ETHUSDT", short: "ETH", name: "Ethereum", label: "ETH/USD", src: "binance", fee: 0.0002, always: true, desk: "rafa", dec: 2 },
+  { id: "SOLUSDT", short: "SOL", name: "Solana", label: "SOL/USD", src: "binance", fee: 0.0003, always: true, desk: "rafa", dec: 2 },
+  { id: "XRPUSDT", short: "XRP", name: "XRP", label: "XRP/USD", src: "binance", fee: 0.0003, always: true, desk: "rafa", dec: 4 },
+  { id: "BNBUSDT", short: "BNB", name: "BNB", label: "BNB/USD", src: "binance", fee: 0.0003, always: true, desk: "rafa", dec: 2 },
+  { id: "DOGEUSDT", short: "DOGE", name: "Dogecoin", label: "DOGE/USD", src: "binance", fee: 0.0003, always: true, desk: "rafa", dec: 5 },
+  { id: "ADAUSDT", short: "ADA", name: "Cardano", label: "ADA/USD", src: "binance", fee: 0.0003, always: true, desk: "rafa", dec: 4 },
+  { id: "AVAXUSDT", short: "AVAX", name: "Avalanche", label: "AVAX/USD", src: "binance", fee: 0.0003, always: true, desk: "rafa", dec: 2 },
+  { id: "LINKUSDT", short: "LINK", name: "Chainlink", label: "LINK/USD", src: "binance", fee: 0.0003, always: true, desk: "rafa", dec: 3 }];
 const GLOBAL = [
   { id: "^GSPC", name: "S&P 500" }, { id: "^IXIC", name: "Nasdaq" }, { id: "DX-Y.NYB", name: "Indice do dolar (DXY)" },
   { id: "^TNX", name: "Juros 10 anos EUA" }, { id: "^VIX", name: "VIX (medo)" }, { id: "BZ=F", name: "Petroleo Brent" },
@@ -256,6 +271,63 @@ function ledgerSummary(ledger, cfg) {
   const n = ledger.length, wins = ledger.filter(t => t.r > 0).length;
   return { n, wins, winRate: n ? round(wins / n * 100, 0) : 0, expectancy: n ? round(ledger.reduce((a, t) => a + t.r, 0) / n, 2) : 0,
            pnl: round(eq - cfg.capital, 2), equity: round(eq, 2), maxDD: round(dd, 2), blocks, curve: curve.slice(-200) };
+}
+
+// ---------------------------------------------------------------- learning from every trade
+// Each trade of the virtual account is written down with the conditions it was taken in. The robot
+// may stop taking a condition (e.g. "sessao=asia") only when it lost in both halves of at least
+// LEARN_MIN trades, and the learning itself stays off until a walk-forward replay of the diary shows
+// that learning this way would have improved the result. Tested on a year of 9 cryptos (2026-11-20):
+// every version of learning from results made it worse, so it starts off.
+const LEARN_MIN = 60, LEARN_CUT = -0.1, LEARN_GAIN = 0.05, LEARN_BLOCKED = 30;
+const CONDITIONS = { mk: "mercado", dir: "lado", al: "a favor da tendencia de 1h", ses: "sessao", rad: "Radar de 15m" };
+const meanR = a => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+function conditionsOf(t, T, m, aligned, b15) {
+  const h = new Date(T).getUTCHours(), r = radarAt(b15, T - MIN15);
+  return { mk: m.short, dir: t.dir, al: aligned, ses: h < 7 ? "asia" : h < 13 ? "europa" : h < 21 ? "eua" : "noite",
+           rad: r && r.force >= 60 ? (r.dir * t.dir > 0 ? 1 : r.dir * t.dir < 0 ? -1 : 0) : 0 };
+}
+function rulesFrom(hist) {
+  const out = [];
+  Object.keys(CONDITIONS).forEach(k => {
+    const g = {};
+    hist.forEach(x => { if (x.f) (g[String(x.f[k])] = g[String(x.f[k])] || []).push(x.r); });
+    Object.keys(g).forEach(v => {
+      const a = g[v], h = a.length >> 1;
+      if (a.length >= LEARN_MIN && meanR(a.slice(0, h)) < LEARN_CUT && meanR(a.slice(h)) < LEARN_CUT) out.push(k + "=" + v);
+    });
+  });
+  return out;
+}
+const blockedBy = (rules, f) => rules.filter(r => { const i = r.indexOf("="); return f && String(f[r.slice(0, i)]) === r.slice(i + 1); });
+// One pass over the diary in time order. For each trade: which conditions the rules of that moment
+// would block (only trades closed before it count), and whether learning was on then: on only when
+// replaying those same rules over the earlier trades improved their result.
+function learn(diary, open, now) {
+  const d = diary.slice().sort((x, y) => x.entryT - y.entryT);
+  const blockedAt = x => blockedBy(rulesFrom(d.filter(y => y.exitT < x.entryT)), x.f);
+  d.forEach(x => { x.why = blockedAt(x); });
+  const checkAt = T => {
+    const h = d.filter(y => y.exitT < T), all = h.map(y => y.r), taken = h.filter(y => !y.why.length).map(y => y.r);
+    const gain = meanR(taken) - meanR(all), blocked = all.length - taken.length;
+    return { n: all.length, allR: round(meanR(all), 3), takenR: round(meanR(taken), 3), blocked, on: blocked >= LEARN_BLOCKED && gain >= LEARN_GAIN };
+  };
+  d.forEach(x => { x.take = !(x.why.length && checkAt(x.entryT).on); });
+  const onNow = checkAt(now).on;
+  (open || []).forEach(x => { x.why = blockedAt(x); x.take = !(x.why.length && onNow); });
+  return { check: checkAt(now), rules: rulesFrom(d) };
+}
+function conditionTable(diary) {
+  const out = [];
+  Object.keys(CONDITIONS).forEach(k => {
+    const g = {};
+    diary.forEach(x => { if (x.f) (g[String(x.f[k])] = g[String(x.f[k])] || []).push(x.r); });
+    Object.keys(g).sort((a, b) => g[b].length - g[a].length).forEach(v => {
+      const a = g[v];
+      out.push({ cond: k, value: v, n: a.length, winRate: round(a.filter(r => r > 0).length / a.length * 100, 0), avgR: round(meanR(a), 2) });
+    });
+  });
+  return out;
 }
 
 function deskSummary(d, byId, cfg) {
@@ -464,7 +536,7 @@ function readMarket(m, b15, s15, study, now, b5, openTrade) {
       status = lvl === null ? "sem liquidez de 15m marcada a favor"
         : "aguardando limpar a liquidez " + (mac.bias > 0 ? "abaixo" : "acima") + " de " + px(m, lvl) + " (" + d + " ATR) e o POI de " + (mac.bias > 0 ? "compra" : "venda") + " em 5m";
     }
-  } else if (!m.trade) status = marketOpen(m, now) ? "observando (a mesa opera so BTC e ouro)" : "mercado fechado";
+  } else if (!m.trade) status = marketOpen(m, now) ? "conta virtual: procurando o POI de 5m" : "mercado fechado";
   const dayAgo = b15.find(x => x.t >= last.t - DAY) || b15[0];
   return { id: m.id, short: m.short, name: m.name, label: m.label, desk: m.desk, dec: m.dec, open: marketOpen(m, now),
            price: last.c, t: last.t, chg24h: round(pctChange(last.c, dayAgo.o) * 100, 2),
@@ -744,6 +816,8 @@ async function main() {
   const byId = {}, live = [], sim = [], study = [], labRuns = { v1: [], v2: [], v2macro: [] }, markets = [], series15 = {};
   const live2 = [], sim2 = [], charts = {}, consults = {};
   let windowStart = 0;                   // the oldest moment every traded market has candles for
+  let paperStart = 0;                    // the same for every market of the virtual account
+  const paperRuns = [];
 
   for (const m of MARKETS) {
     try {
@@ -755,6 +829,12 @@ async function main() {
       const s15 = M.setups(b15, { macroMs: HOUR, fee: m.fee });
       const run = (bars, trades) => ({ id: m.id, short: m.short, bars, trades, fee: m.fee });
       const v2 = M.poiSetups(b5, Object.assign({ fee: m.fee }, V2));
+      // the virtual account: every POI of 5m, each with the conditions it opened in
+      if (b5.length) paperStart = Math.max(paperStart, b5[0].t);
+      const aligned = new Set(v2.trades.map(t => t.entryIdx + ":" + t.dir));
+      const every = M.poiSetups(b5, Object.assign({ fee: m.fee }, PAPER)).trades;
+      every.forEach(t => { t.f = conditionsOf(t, b5[t.entryIdx].t, m, aligned.has(t.entryIdx + ":" + t.dir), b15); });
+      paperRuns.push(run(b5, every));
       labRuns.v1.push(run(b15, s15.trades));
       labRuns.v2.push(run(b5, M.poiSetups(b5, { fee: m.fee, htfMs: MIN15 }).trades));
       labRuns.v2macro.push(run(b5, v2.trades));
@@ -822,10 +902,22 @@ async function main() {
     charts, mt5,
     lab, people: PEOPLE, backtest: BACKTEST
   };
-  const lean = t => { const x = slimTrade(t, byId[t.market]); delete x.consult; return x; };
-  st.ledger = mergeLedger(prev && prev.ledger, L.closed.map(lean), windowStart);
-  st.paper = Object.assign({ start: FOUNDED, capital: cfg.capital }, ledgerSummary(st.ledger, cfg),
-    { open: L.open.map(lean), closed: st.ledger.slice(-30).reverse() });
+  const lean = t => { const x = slimTrade(t, byId[t.market]); delete x.consult; delete x.notional; delete x.openR;
+                      x.f = t.f; x.r = t.open ? null : round(t.r, 3); return x; };
+  // the virtual account: every market, no daily limit; its diary keeps every closed trade (also the ones
+  // before PAPER_START, as study) and the learning decides which trades the account takes
+  const P = M.desk(paperRuns, Object.assign({}, cfg, { maxStopsPerDay: 1e9 }));
+  const startMs = Date.parse(PAPER_START + "T00:00:00Z");
+  st.journal = mergeLedger(prev && prev.journal, P.closed.map(lean), paperStart).slice(-3000);
+  const openAll = P.open.filter(t => t.entryT >= startMs).map(lean);
+  const L8 = learn(st.journal, openAll, now), openNow = openAll.filter(t => t.take);
+  st.ledger = st.journal.filter(t => t.entryT >= startMs && t.take);
+  st.paper = Object.assign({ start: PAPER_START, capital: cfg.capital, markets: paperRuns.length }, ledgerSummary(st.ledger, cfg),
+    { open: openNow, closed: st.ledger.slice(-30).reverse() });
+  st.learning = { check: L8.check, rules: L8.rules, table: conditionTable(st.journal), labels: CONDITIONS,
+                  diary: st.journal.length, study: st.journal.filter(t => t.entryT < startMs).length,
+                  skipped: st.journal.filter(t => t.entryT >= startMs && !t.take).length,
+                  min: LEARN_MIN, cut: LEARN_CUT, gain: LEARN_GAIN };
   st.desk.sim.closed = st.desk.sim.closed.slice(0, 15);
   st.desk.study.closed = st.desk.study.closed.slice(0, 10);
   st.desk.study.curve = st.desk.study.curve.slice(-80);
@@ -870,4 +962,5 @@ async function main() {
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
 module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity, radarAt, cleanMt5, mt5Robot,
-                   deskPlan, testOrder, commandText, explainRefusal, alerts, mergeLedger, ledgerSummary };
+                   deskPlan, testOrder, commandText, explainRefusal, alerts, mergeLedger, ledgerSummary,
+                   rulesFrom, learn, conditionTable };

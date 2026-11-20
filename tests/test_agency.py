@@ -97,6 +97,18 @@ const merged = B.mergeLedger([tr("BTC", 10, -1), tr("BTC", 500, 3)], [tr("BTC", 
 const sumL = B.ledgerSummary(merged, { capital: 1000, block: 25 });
 out.ledger = [merged.length, sumL.n, sumL.wins, sumL.pnl, sumL.equity, sumL.maxDD];
 
+// learning: a market that always loses becomes a rule and, once avoiding it would have helped, is avoided;
+// on noise (alternating results) nothing is learned
+const syn = [], noise = [];
+for (let i = 0; i < 400; i++) {
+  const bad = i % 3 === 0;
+  syn.push({ entryT: i * 10, exitT: i * 10 + 5, r: bad ? -1 : (i % 2 ? 2 : -1), f: { mk: bad ? "RUIM" : "BOM", dir: 1, al: false, ses: "eua", rad: 0 } });
+  noise.push({ entryT: i * 10, exitT: i * 10 + 5, r: (i >> 5) % 2 ? 1 : -0.5, f: { mk: i % 2 ? "A" : "B", dir: 1, al: false, ses: "eua", rad: 0 } });
+}
+const late = { entryT: 5000, f: { mk: "RUIM", dir: 1, al: false, ses: "eua", rad: 0 } };
+const Ls = B.learn(syn, [late], 5000), Ln = B.learn(noise, [], 5000);
+out.learn = [Ls.check.on, Ls.rules, late.take, syn.slice(0, 100).every(x => x.take), Ln.check.on];
+
 out.tone = [B.tone("Ibovespa dispara e bate recorde"), B.tone("Bitcoin despenca com medo de recessao"), B.tone("Mercado aguarda decisao do Fed")];
 out.tags = B.tagsOf("Lula reeleito: dolar dispara", "Politica");
 out.climate = [B.climate([{id: "^GSPC", chg5d: 0.02}, {id: "^VIX", price: 14}, {id: "DX-Y.NYB", chg5d: -0.01}]).label,
@@ -169,6 +181,14 @@ class Agency(unittest.TestCase):
 
     def test_virtual_account_ledger(self):
         self.assertEqual(self.out["ledger"], [3, 3, 1, 50, 1050, 50])
+
+    def test_learning_needs_proof(self):
+        on, rules, late_taken, early_all_taken, noise_on = self.out["learn"]
+        self.assertTrue(on)
+        self.assertEqual(rules, ["mk=RUIM"])
+        self.assertFalse(late_taken)          # learned: the losing market is avoided
+        self.assertTrue(early_all_taken)      # before enough evidence, every trade is taken
+        self.assertFalse(noise_on)
 
     def test_brain_helpers(self):
         self.assertEqual(self.out["tone"], [1, -1, 0])

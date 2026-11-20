@@ -29,6 +29,16 @@ foi **desativada** em 2026-11-11 e nao deve ser religada.
   **conta virtual da agencia** (`st.paper`, historico em `st.ledger`, guardado de
   uma leitura para a outra via `--prev`), com precos reais e custos do MT5. O MT5
   ficou opcional: se o robo do MT5 voltar a mandar resumos, a pagina mostra.
+- Desde 2026-11-20 (`PAPER_START`): a conta virtual opera **todo POI de 5m em 14
+  mercados** (9 criptomoedas da Binance, ouro e 4 moedas), **sem limite de
+  stops por dia** (pedido do usuario: "fazer o dinheiro rodar"), cerca de 2
+  operacoes por dia. O limite de 2 stops volta quando for dinheiro real.
+- **Aprendizado** (`learn` em `agency/brain.js`): diario `st.journal` com as
+  condicoes de cada operacao (mercado, lado, a favor da tendencia de 1h, sessao,
+  Radar de 15m). Uma condicao vira regra so com perda nas duas metades de >= 60
+  operacoes, e o aprendizado so liga se o replay em ordem do diario mostrar que
+  seguir as regras melhorou a media. Teste de 1 ano (9 criptos, 443 operacoes):
+  todas as 4 formas de aprender com resultados pioraram; por isso comeca desligado.
 - Proximo passo para dinheiro real: corretora por API (sem computador), so
   depois de um bloco de 25 operacoes positivo.
 - A agencia 3D (`agency/agencia.html`) e o Radar ficam no repositorio, mas nao

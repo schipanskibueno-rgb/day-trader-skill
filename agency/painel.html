@@ -86,12 +86,13 @@ footer { margin-top: 32px; }
   </header>
 
   <nav aria-label="Seções">
-    <a href="#avanco">Avanço</a><a href="#mercado">Mercado hoje</a><a href="#rendimentos">Rendimentos</a><a href="#previsao">Previsão</a>
+    <a href="#avanco">Avanço</a><a href="#aprendizado">Aprendizado</a><a href="#mercado">Mercado hoje</a><a href="#rendimentos">Rendimentos</a><a href="#previsao">Previsão</a>
   </nav>
 
   <div id="overlay" hidden></div>
 
   <section id="avanco"><h2>Avanço</h2><div id="progress"></div></section>
+  <section id="aprendizado"><h2>Aprendizado</h2><div id="learning"></div></section>
   <section id="mercado"><h2>Mercado hoje</h2><div id="market"></div></section>
   <section id="rendimentos"><h2>Rendimentos possíveis</h2><div id="returns"></div></section>
   <section id="previsao"><h2>Previsão</h2><div id="forecast"></div></section>
@@ -106,7 +107,8 @@ footer { margin-top: 32px; }
 "use strict";
 // the agency publishes its reading next to this page every hour
 const STATE_URL = () => "state.json?t=" + Date.now();
-const NAMES = { BTC: "Bitcoin", XAU: "Ouro", EUR: "Euro", GBP: "Libra", JPY: "Iene", AUD: "Dólar australiano" };
+const NAMES = { BTC: "Bitcoin", XAU: "Ouro", EUR: "Euro", GBP: "Libra", JPY: "Iene", AUD: "Dólar australiano", ETH: "Ethereum", SOL: "Solana",
+                XRP: "XRP", BNB: "BNB", DOGE: "Dogecoin", ADA: "Cardano", AVAX: "Avalanche", LINK: "Chainlink" };
 const $ = id => document.getElementById(id);
 const nf = (v, d) => Number(v).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
 const usd = (v, d) => (v < 0 ? "-US$ " : "US$ ") + nf(Math.abs(v), d === undefined ? 2 : d);
@@ -157,12 +159,16 @@ function paper() {
   return Object.assign({ n: 0, wins: 0, winRate: 0, expectancy: 0, pnl: 0, equity: cap, capital: cap, maxDD: 0, open: [], closed: [], curve: [] }, S.paper || {});
 }
 const startDay = () => String((S.paper && S.paper.start) || S.founded || "").split("-").reverse().join("/");
+const COND_VALUE = { dir: { "1": "compras", "-1": "vendas" }, al: { "true": "a favor da tendência de 1h", "false": "contra ou sem a tendência de 1h" },
+  ses: { asia: "sessão da Ásia (21h–4h)", europa: "sessão da Europa (4h–10h)", eua: "sessão dos EUA (10h–18h)", noite: "fim do dia (18h–21h)" },
+  rad: { "1": "Radar de 15m a favor", "0": "Radar de 15m neutro", "-1": "Radar de 15m contra" } };
+function condName(rule) { const i = rule.indexOf("="), k = rule.slice(0, i), v = rule.slice(i + 1); return k === "mk" ? nameOf(v) : (COND_VALUE[k] && COND_VALUE[k][v]) || rule; }
 const resultWord = r => (r === "alvo" ? "alvo" : r === "stop" ? "stop" : r || "—");
 
 // ------------------------------------------------------------------ what the robot says
 function talk() {
   const box = $("talk"), P = paper(), out = [], plan = (S.command && S.command.plan) || [], today = (S.desk && S.desk.today) || {};
-  out.push("Eu opero a conta virtual da agência: dinheiro de teste, com os preços reais do Bitcoin e do ouro, 24 horas por dia. Comecei em " +
+  out.push("Eu opero a conta virtual da agência em " + (P.markets || 14) + " mercados (criptomoedas, ouro e moedas), 24 horas por dia, com dinheiro de teste e preços reais. Comecei em " +
     startDay() + " com " + usd(P.capital, 0) + ". Saldo agora: " + usd(P.equity) + " (resultado de " + usd(P.pnl) + ").");
   P.open.forEach(t => out.push("Tenho uma " + sideWord(t.dir) + " aberta em " + nameOf(t.asset) + ": entrada " + nf(t.entry, t.dec) + ", stop " +
     nf(t.stop, t.dec) + ", alvo " + nf(t.take, t.dec) + (t.openUsd != null ? ". Resultado agora: " + usd(t.openUsd) : "") + "."));
@@ -174,8 +180,11 @@ function talk() {
     else if (p.allow === "BOTH") out.push(n + ": compras e vendas liberadas (" + why + ").");
     else out.push(n + ": não opero agora, porque " + why.replace(/^recusado: /, "") + ".");
   });
-  if (P.n > 0) out.push("Já fechei " + P.n + " operaç" + (P.n === 1 ? "ão" : "ões") + ", " + P.wins + " no lucro. Só entro quando o preço limpa a liquidez e forma o POI a favor da tendência de 1 hora, então opero poucas vezes por mês.");
-  else out.push("Ainda não fechei nenhuma operação. Só entro quando o preço limpa a liquidez e forma o POI a favor da tendência de 1 hora, então opero poucas vezes por mês.");
+  out.push((P.n > 0 ? "Já fechei " + P.n + " operaç" + (P.n === 1 ? "ão" : "ões") + ", " + P.wins + " no lucro. " : "Ainda não fechei nenhuma operação. ") +
+    "Entro em todo POI de 5 minutos depois da limpeza de liquidez, sem limite de stops por dia: são cerca de 2 operações por dia somando todos os mercados.");
+  const Lr = S.learning;
+  if (Lr) out.push(Lr.check.on ? "Meu aprendizado está ligado: deixei de entrar em " + Lr.rules.map(condName).join(", ") + ", porque isso perdeu de forma repetida e evitar melhorou o resultado."
+    : "Anoto as condições de cada operação (" + Lr.diary + " no meu diário). Ainda não mudei meu jeito de operar: até agora, aprender com os resultados teria piorado, e não melhorado. Só mudo quando a prova aparecer.");
   const r = robot();
   if (r.connected && !r.stale) out.push("Também estou ligado ao MetaTrader 5 (conta " + (r.demo ? "demo" : "REAL") + " " + r.acc + ", saldo " + usd(r.bal) + ").");
   box.textContent = "";
@@ -207,7 +216,8 @@ function progress() {
   box.textContent = "";
   const steps = [
     [Date.now() - S.updatedAt < 2 * 3600e3 ? "ok" : "no", "Agência lendo o mercado sozinha, de hora em hora", "Roda de graça no GitHub, sem computador ligado. Última leitura " + ago(S.updatedAt) + "."],
-    ["ok", "Conta virtual operando 24 horas", "Desde " + startDay() + ", com preços reais e o custo da corretora descontado."],
+    ["ok", "Conta virtual operando 24 horas", "Desde " + startDay() + ", em " + (P.markets || 14) + " mercados, com preços reais e o custo da corretora descontado."],
+    [S.learning && S.learning.check.on ? "ok" : "wait", "Aprendizado com os resultados", S.learning ? (S.learning.check.on ? "Ligado: evitando o que perdeu de forma repetida." : "Anotando tudo; liga sozinho quando aprender provar que melhora o resultado.") : "Começa na próxima leitura."],
     [P.n > 0 || P.open.length ? "ok" : "wait", "Primeira operação", P.n > 0 ? P.n + " encerrada(s)." : P.open.length ? "Em andamento." : "Ainda não aconteceu."],
     [P.n >= block ? "ok" : "wait", "Primeiro bloco de " + block + " operações", P.n >= block ? "Bloco completo: dá para julgar o método." : P.n + " de " + block + ". É o mínimo para julgar se o método ganha."],
     ["wait", "Corretora para dinheiro real (opcional, no futuro)", "Também sem computador: ligamos uma corretora pela internet (API). Só depois de um bloco de " + block + " no positivo."],
@@ -259,6 +269,35 @@ function progress() {
   }
 }
 
+// ------------------------------------------------------------------ Aprendizado
+function learning() {
+  const box = $("learning"), L = S.learning;
+  box.textContent = "";
+  if (!L) { para(box, "O diário de operações começa na próxima leitura.", "note"); return; }
+  const c1 = card(L.check.on ? "Aprendizado ligado" : "Aprendizado anotando, ainda sem mudar nada");
+  para(c1, "Cada operação fica no meu diário com as condições em que entrei: mercado, compra ou venda, se estava a favor da tendência de 1 hora, horário e o Radar de 15 minutos. " +
+    "Uma condição só vira regra (\"não entro mais nisso\") quando perdeu nas duas metades de pelo menos " + L.min + " operações. E o aprendizado só liga se, repassando o diário na ordem em que tudo aconteceu, seguir essas regras tivesse melhorado o resultado.");
+  c1.append(kv([["Operações no diário", L.diary + (L.study ? " (" + L.study + " de estudo, antes de " + startDay() + ")" : "")],
+                ["Média de todas", nf(L.check.allR, 2) + "R", signCls(L.check.allR)],
+                ["Média se tivesse seguido as regras", nf(L.check.takenR, 2) + "R", signCls(L.check.takenR)],
+                ["Regras ativas agora", L.rules.length ? L.rules.map(condName).join(", ") : "nenhuma"],
+                ["Operações evitadas pela conta", String(L.skipped || 0)]]));
+  if (!L.check.on) para(c1, "Por que ainda está desligado: " + (L.check.blocked < 30 ? "ainda não há condições com perda repetida suficientes para testar." : "seguir as regras teria dado " + nf(L.check.takenR, 2) + "R, contra " + nf(L.check.allR, 2) + "R sem elas.") +
+    " No teste do último ano, aprender assim piorou o resultado em todas as formas que testei: o que perdia num mês tendia a ganhar no seguinte.", "note");
+  box.append(c1);
+  const c2 = card("O que os números dizem até agora"), t = el("table"), h = el("tr");
+  ["Condição", "Operações", "Acerto", "Média"].forEach((x, i) => h.append(el("th", i ? "num" : null, x))); t.append(h);
+  let last = null;
+  L.table.forEach(r => {
+    if (r.cond !== last) { const tr = el("tr"), th = el("th", null, pt(L.labels[r.cond] || r.cond)); th.colSpan = 4; tr.append(th); t.append(tr); last = r.cond; }
+    const tr = el("tr"); tr.append(el("td", null, condName(r.cond + "=" + r.value)), el("td", "num", String(r.n)), el("td", "num", r.winRate + "%"),
+      el("td", "num " + (signCls(r.avgR) || ""), nf(r.avgR, 2) + "R")); t.append(tr);
+  });
+  c2.append(wrap(t));
+  para(c2, "Com poucas operações, a média engana: uma condição com 10 operações pode virar do lucro para o prejuízo no mês seguinte. Por isso as regras pedem pelo menos " + L.min + ".", "note");
+  box.append(c2);
+}
+
 // ------------------------------------------------------------------ Mercado hoje
 function market() {
   const box = $("market"); box.textContent = "";
@@ -273,15 +312,12 @@ function market() {
   }
   box.append(c0);
 
-  const g = el("div", "grid");
-  (S.markets || []).forEach(m => {
-    const c = card(nameOf(m.short) + (m.trade ? " · operado" : " · observado"));
-    c.append(el("div", "big", nf(m.price, Math.min(m.dec, 5))));
-    c.append(kv([["24 horas", pct(m.chg24h || 0), signCls(m.chg24h)], ["Tendência (1h)", trendWord(m.macro ? m.macro.bias : 0)], ["Mercado", m.open ? "aberto" : "fechado"]]));
-    c.append(el("div", "small muted", pt(m.status)));
-    g.append(c);
-  });
-  box.append(g);
+  const c1 = card("Mercados que o robô opera"), t1 = el("table"), h1 = el("tr");
+  ["Mercado", "Preço", "24 horas", "Tendência (1h)"].forEach((x, i) => h1.append(el("th", i ? "num" : null, x))); t1.append(h1);
+  (S.markets || []).forEach(m => { const tr = el("tr");
+    tr.append(el("td", null, nameOf(m.short) + (m.open ? "" : " (fechado)")), el("td", "num", nf(m.price, Math.min(m.dec, 5))),
+      el("td", "num " + (signCls(m.chg24h) || ""), pct(m.chg24h || 0)), el("td", "num", trendWord(m.macro ? m.macro.bias : 0))); t1.append(tr); });
+  c1.append(wrap(t1)); box.append(c1);
 
   // market news first; plain politics only if nothing else came
   const weight = n => (n.tags || []).filter(t => ["BTC", "Ouro", "Dolar", "Juros", "EUA", "Petroleo", "China", "Cripto"].indexOf(t) >= 0).length;
@@ -325,7 +361,7 @@ function returns() {
   }
   const sim = (S.desk && S.desk.sim) || {};
   if (sim.n) para(c3, "Últimos 60 dias, simulado pela agência: " + sim.n + " operações, " + sim.winRate + "% de acerto, média de " + nf(sim.expectancy, 2) + "R por operação (" + usd(sim.pnl, 0) + ").", "small");
-  para(c3, "R = quantas vezes o stop. +0,37R por operação, com stop de " + usd(stop, 0) + ", dá cerca de " + usd(0.37 * stop, 0) + " por operação em média. Os testes ainda não provaram uma vantagem: um ano foi positivo e o outro negativo. Por isso seguimos com dinheiro de teste até fechar pelo menos um bloco de " + block + " operações.", "note");
+  para(c3, "R = quantas vezes o stop. +0,37R por operação, com stop de " + usd(stop, 0) + ", dá cerca de " + usd(0.37 * stop, 0) + " por operação em média. Os testes ainda não provaram uma vantagem: um ano foi positivo e o outro negativo. Por isso seguimos com dinheiro de teste até fechar pelo menos um bloco de " + block + " operações." + (B && B.learning ? " " + pt(B.learning) + "." : ""), "note");
   box.append(c3);
 }
 
@@ -373,7 +409,7 @@ function forecast() {
 function render() {
   $("overlay").hidden = true;
   $("when").textContent = "Leitura de " + brt(S.updatedAt) + " (Brasília)" + (S.nextAt ? " · próxima às " + hour(S.nextAt) : "");
-  [talk, progress, market, returns, forecast].forEach(f => { try { f(); } catch (e) { console.error(e); } });
+  [talk, progress, learning, market, returns, forecast].forEach(f => { try { f(); } catch (e) { console.error(e); } });
 }
 async function load() {
   try {
