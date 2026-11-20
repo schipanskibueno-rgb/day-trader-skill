@@ -4,6 +4,33 @@ Resumo para continuar o projeto em outra conversa. Usuario fala portugues,
 usa **so tablet Android** (com Termux) e prefere instrucoes simples, um comando
 por vez.
 
+## Arquitetura atual (desde 2026-11-20)
+
+O usuario pediu para **nao gastar creditos** e trocou a empresa 3D por uma
+**pagina simples com um robo** (avanco, mercado de hoje, rendimentos
+possiveis, previsao). A tarefa agendada do Claude (`trig_01KdaTx8SdqMScjZo7kRKrWv`)
+foi **desativada** em 2026-11-11 e nao deve ser religada.
+
+- `.github/workflows/robo.yml`: roda **de hora em hora no GitHub Actions**
+  (gratis em repositorio publico). Le o mercado com `agency/brain.js`, manda o
+  plano e as ordens assinadas ao robo do MT5, manda avisos ao celular e publica
+  `agency/painel.html` + `state.json` no ramo `gh-pages` (GitHub Pages:
+  https://schipanskibueno-rgb.github.io/day-trader-skill/). So roda a partir do
+  ramo `main`.
+- Chave da agencia: segredo `MT5_KEY` do repositorio (Settings > Secrets and
+  variables > Actions). **Nunca** escrever a chave no codigo: o repositorio e publico.
+- Ajustes do dono: `agency/config.json` (conta, stop, `testOrder` = data
+  AAAA-MM-DD de Brasilia para uma ordem de teste, `symbols` = nome do ativo na
+  corretora, ex. `"BTC": "BTCUSDm"`).
+- Avisos no celular: app ntfy, canal `pregao-virtual-a224d58b32c0-avisos`
+  (ordem enviada, operacao aberta/encerrada, recusa com explicacao, robo sem
+  noticias, Algo Trading desligado, mesa fechada).
+- A agencia 3D (`agency/agencia.html`) e o Radar ficam no repositorio, mas nao
+  sao mais atualizados.
+- Corretora: MetaQuotes-Demo **nao tem Bitcoin** (o "BTC" de la e um fundo de
+  acoes). O metodo so foi positivo no BTC; recomendado abrir conta demo numa
+  corretora com BTCUSD.
+
 ## Onde o usuario quer chegar
 
 Um sistema de trade que:

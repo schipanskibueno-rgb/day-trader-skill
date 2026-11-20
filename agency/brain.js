@@ -2,7 +2,11 @@
 /* The agency's brain: one pass over real market data, written as one JSON
  * document that the 3D agency page shows. Node 18+ (global fetch), no packages.
  *
- *   node agency/brain.js --out state.json [--config config.json] [--every-hours 3] [--radar-out radar.json]
+ *   node agency/brain.js --out state.json [--config config.json] [--every-hours 1] [--radar-out radar.json]
+ *                        [--prev old-state.json] [--send-orders] [--alerts]
+ *
+ * --prev gives the previous reading: the meeting is kept for 3 hours and --alerts sends to the
+ * owner's phone (ntfy channel ALERT_TOPIC) what changed with the robot since then.
  *
  * Markets: BTC (Binance), gold and the four major currencies through their
  * CME futures on Yahoo Finance (spot forex has no volume). The desk trades
@@ -30,6 +34,14 @@ const MT5_TOPIC = "pregao-virtual-a224d58b32c0";
 // ...and reads the agency's plan and orders from this one; every message is signed with MT5_KEY
 const MT5_CMD_TOPIC = process.env.MT5_CMD_TOPIC || MT5_TOPIC + "-cmd";
 const MT5_SYMBOL = { BTC: "BTCUSD", XAU: "XAUUSD" };
+// the owner's phone: what happens with the robot, in plain words (ntfy app, subscribed to this channel)
+const ALERT_TOPIC = process.env.ALERT_TOPIC || MT5_TOPIC + "-avisos";
+const MEET_EVERY = 3 * 3600 * 1000;    // the team meets every 3 hours, even when the readings are hourly
+// what the method did on past data (node agency/lab-variants.js, MT5 costs, stop US$ 50, target 3R; see agency/wyckoff.md)
+const BACKTEST = { at: "2026-10-29", stopUsd: 50, rows: [
+  { period: "ultimo ano", market: "BTC", trades: 65, expR: 0.37, note: "POI de 5m com o contexto de Wyckoff" },
+  { period: "ultimo ano", market: "Ouro", trades: 15, expR: -0.54, note: "60 dias de dados" },
+  { period: "ano anterior", market: "BTC e ouro", trades: 60, expR: -0.09, note: "teste fora da amostra" }] };
 
 const FOUNDED = "2026-10-27";          // the paper desk trades from this day on
 const DEFAULTS = { capital: 5000, stopUsd: 50, maxStopsPerDay: 2, rr: 3, block: 25, followMt5: true };
@@ -203,6 +215,11 @@ function readConfig(file) {
     if (+raw.stopUsd > 0) cfg.stopUsd = +raw.stopUsd;
     cfg.followMt5 = raw.followMt5 !== false;
     if (typeof raw.testOrder === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.testOrder)) cfg.testOrder = raw.testOrder;
+    // the broker's name for each market, when it is not the usual one (e.g. "BTCUSDm")
+    if (raw.symbols && typeof raw.symbols === "object") Object.keys(MT5_SYMBOL).forEach(k => {
+      const v = raw.symbols[k];
+      if (typeof v === "string" && /^[A-Za-z0-9._#-]{3,20}$/.test(v)) MT5_SYMBOL[k] = v;
+    });
   }
   return cfg;
 }
@@ -631,14 +648,59 @@ async function sendCommands(text) {
   if (!r.ok) throw new Error("ntfy " + r.status);
 }
 
+// what changed since the previous reading, written for the owner's phone
+function alerts(prev, st, now) {
+  const out = [], add = (title, message, tags, priority) => out.push({ title, message, tags: tags || [], priority: priority || 3 });
+  const P = prev && prev.mt5 ? prev.mt5 : {}, R = st.mt5 || {};
+  const name = s => { const k = Object.keys(MT5_SYMBOL).find(x => String(s).indexOf(MT5_SYMBOL[x]) === 0 || String(s).indexOf(x) === 0);
+                      return k === "XAU" ? "ouro (" + s + ")" : k === "BTC" ? "bitcoin (" + s + ")" : s; };
+  const side = d => (d > 0 ? "COMPRA" : "VENDA");
+  const key = x => x.s + "|" + x.t;
+  const seen = (list, x) => (list || []).some(y => key(y) === key(x));
+  // the agency's own orders
+  const sentBefore = new Set(((prev && prev.command && prev.command.orders) || []).map(o => o.id));
+  if (st.command && st.command.sent) st.command.orders.filter(o => !sentBefore.has(o.id)).forEach(o =>
+    add("Agencia mandou uma ordem", (o.side === "BUY" ? "COMPRAR " : "VENDER ") + name(o.sym) + ", risco de US$ " + o.risk +
+        ", alvo de 3 vezes o risco. Motivo: " + o.why + ". O robo executa no proximo minuto.", ["memo"], 4));
+  if (R.connected) {
+    (R.pos || []).filter(x => !seen(P.pos, x) && !seen(P.deals, x)).forEach(x =>
+      add("Operacao aberta", side(x.d) + " de " + name(x.s) + ": " + x.lot + " lote(s) a " + x.p + ", stop " + x.sl + ", alvo " + x.tp + ".", ["chart_with_upwards_trend"], 4));
+    (R.deals || []).filter(x => !seen(P.deals, x)).forEach(x =>
+      add(x.pl >= 0 ? "Operacao encerrada no lucro" : "Operacao encerrada no prejuizo",
+          side(x.d) + " de " + name(x.s) + " fechou com " + (x.pl >= 0 ? "ganho" : "perda") + " de US$ " + Math.abs(x.pl).toFixed(2) +
+          ". Saldo da conta: US$ " + (R.bal || 0).toFixed(2) + ".", [x.pl >= 0 ? "moneybag" : "small_red_triangle_down"], 4));
+    (R.res || []).filter(l => (P.res || []).indexOf(l) < 0).forEach(l =>
+      add(l.indexOf("EXECUTADA") >= 0 ? "Robo executou a ordem" : "Ordem nao executada", l, [l.indexOf("EXECUTADA") >= 0 ? "white_check_mark" : "x"], 4));
+    (R.rej || []).filter(x => !(P.rej || []).some(y => y.s === x.s && y.t === x.t)).forEach(x =>
+      add("Corretora recusou uma ordem", "Ordem de " + name(x.s) + " recusada: " + explainRefusal(x.c) + " (resposta do MT5: " + (x.c || "sem texto") + ").", ["x"], 4));
+    if (R.open === false && P.open !== false) add("Mesa fechada hoje", "Dois stops hoje: o robo para ate o proximo dia, como manda o gerenciamento.", ["stop_sign"]);
+    if (!R.algo && P.algo) add("Algo Trading desligado", "O botao Algo Trading do MT5 foi desligado: o robo nao consegue operar. Peca para ligar de novo (botao verde no topo).", ["warning"], 4);
+  }
+  const was = P.connected && !P.stale, is = R.connected && !R.stale;
+  if (prev && prev.mt5 && was && !is) add("Robo sem noticias", "O robo nao manda resumo ha mais de 1 hora. Confira se o computador esta ligado, com o MT5 aberto e o robo no grafico.", ["warning"], 4);
+  if (prev && prev.mt5 && !was && is) add("Robo conectado", "O robo voltou a falar com a agencia. Conta " + (R.demo ? "demo" : "REAL") + " " + R.acc + ", saldo US$ " + (R.bal || 0).toFixed(2) + ".", ["electric_plug"]);
+  return out;
+}
+
+async function sendAlerts(list) {
+  for (const a of list) {
+    const r = await fetch("https://ntfy.sh/", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.assign({ topic: ALERT_TOPIC }, a)) });
+    if (!r.ok) throw new Error("ntfy " + r.status);
+  }
+}
+
 // ---------------------------------------------------------------- main
 
 async function main() {
   const args = process.argv.slice(2), arg = k => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
   const out = arg("--out"), every = arg("--every-hours") ? +arg("--every-hours") : null;
   const cfg = readConfig(arg("--config"));
+  let prev = null;
+  try { if (arg("--prev") && fs.existsSync(arg("--prev"))) prev = JSON.parse(fs.readFileSync(arg("--prev"), "utf8")); } catch (e) { prev = null; }
   // the account the agency works with follows the balance of the MT5 account (unless the owner turned it off)
   const mt5 = await mt5Robot(Date.now());
+  if (mt5.connected) mt5.rej.forEach(x => { x.why = explainRefusal(x.c); });
   cfg.capitalTyped = cfg.capital;
   if (cfg.followMt5 && mt5.connected && mt5.bal > 0 && Date.now() - mt5.at < 12 * HOUR) {
     cfg.capital = Math.round(mt5.bal * 100) / 100;
@@ -722,7 +784,7 @@ async function main() {
       compare: { trigger: "2m", live: deskSummary(L2, byId, cfg), sim: deskSummary(S2, byId, cfg) }
     },
     charts, mt5,
-    lab, people: PEOPLE
+    lab, people: PEOPLE, backtest: BACKTEST
   };
   st.desk.sim.closed = st.desk.sim.closed.slice(0, 15);
   st.desk.study.closed = st.desk.study.closed.slice(0, 10);
@@ -743,8 +805,13 @@ async function main() {
       catch (e) { st.command.note = "falha ao enviar: " + e.message; errors.push("ordens: " + e.message); }
     }
   } else st.command.note = "modo leitura: plano nao enviado ao robo";
-  st.meeting = meeting(st, now);
+  // hourly readings, but the team meets every 3 hours: in between, the last meeting stays on the page
+  st.meeting = prev && prev.meeting && prev.meeting.time && now - prev.meeting.time < MEET_EVERY - 15 * 60000 ? prev.meeting : meeting(st, now);
   st.agents = agentReports(st);
+  st.alerts = prev ? alerts(prev, st, now) : [];
+  if (args.includes("--alerts") && st.alerts.length) {
+    try { await sendAlerts(st.alerts); } catch (e) { errors.push("avisos: " + e.message); }
+  }
 
   // the candles, liquidity and POIs the Radar de Ativos page shows for the desk's markets
   const radarDoc = { updatedAt: now, nextAt: st.nextAt, source: "Agencia Pregao Virtual (Binance e futuros CME)", assets: {} };
@@ -763,4 +830,4 @@ async function main() {
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
 module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity, radarAt, cleanMt5, mt5Robot,
-                   deskPlan, testOrder, commandText, explainRefusal };
+                   deskPlan, testOrder, commandText, explainRefusal, alerts };

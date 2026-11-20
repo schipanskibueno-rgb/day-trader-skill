@@ -82,6 +82,15 @@ const good = { v: 1, acc: 1, srv: "MetaQuotes-Demo", demo: true, t: now / 1000 -
 out.mt5 = [B.cleanMt5(good, now).pos[0].s, B.cleanMt5({ v: 2 }, now), B.cleanMt5(Object.assign({}, good, { t: now / 1000 + 3600 }), now),
            B.cleanMt5(Object.assign({}, good, { srv: "<script>x" }), now).srv];
 
+// alerts for the owner's phone: only what changed since the previous reading
+const g1 = B.cleanMt5(good, now);
+const g2 = B.cleanMt5(Object.assign({}, good, { pos: [], deals: [{ s: "BTCUSD", d: 1, lot: 0.1, p: 1.3, pl: 150, t: now / 1000 - 60 }],
+                                               rej: [{ s: "XAUUSD", st: 5, c: "deleted [no money]", t: now / 1000 - 30 }] }), now);
+const ord = { id: "TESTE-1", sym: "XAUUSD", side: "SELL", risk: 50, why: "teste" };
+out.alerts = [B.alerts({ mt5: g1, command: { orders: [] } }, { mt5: g2, command: { sent: true, orders: [ord] } }, now).map(a => a.title),
+              B.alerts({ mt5: g2, command: { orders: [ord] } }, { mt5: g2, command: { sent: true, orders: [ord] } }, now).length,
+              B.alerts({ mt5: g2 }, { mt5: { connected: false } }, now).map(a => a.title)];
+
 out.tone = [B.tone("Ibovespa dispara e bate recorde"), B.tone("Bitcoin despenca com medo de recessao"), B.tone("Mercado aguarda decisao do Fed")];
 out.tags = B.tagsOf("Lula reeleito: dolar dispara", "Politica");
 out.climate = [B.climate([{id: "^GSPC", chg5d: 0.02}, {id: "^VIX", price: 14}, {id: "DX-Y.NYB", chg5d: -0.01}]).label,
@@ -146,6 +155,12 @@ class Agency(unittest.TestCase):
         self.assertIsNone(future)
         self.assertEqual(srv, "<script>x")   # plain text: the page writes it with textContent, never as HTML
 
+    def test_alerts_tell_only_what_changed(self):
+        first, repeat, gone = self.out["alerts"]
+        self.assertEqual(first, ["Agencia mandou uma ordem", "Operacao encerrada no lucro", "Corretora recusou uma ordem"])
+        self.assertEqual(repeat, 0)
+        self.assertEqual(gone, ["Robo sem noticias"])
+
     def test_brain_helpers(self):
         self.assertEqual(self.out["tone"], [1, -1, 0])
         self.assertIn("Politica", self.out["tags"])
@@ -166,6 +181,25 @@ class Page(unittest.TestCase):
         self.assertIn("three@0.160.0", html)
         for bad in ("X-MBX-APIKEY", "/api/v3/order", "fetch("):
             self.assertNotIn(bad, html)
+
+
+class Panel(unittest.TestCase):
+    def test_panel_reads_only_the_published_reading_and_writes_text(self):
+        with open(os.path.join(ROOT, "agency", "painel.html"), encoding="utf-8") as fh:
+            html = fh.read()
+        self.assertEqual(html.count("fetch("), 1)
+        self.assertIn('"state.json?t="', html)
+        for bad in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "MT5_KEY", "/api/v3/order"):
+            self.assertNotIn(bad, html)
+
+    def test_config_and_workflow(self):
+        with open(os.path.join(ROOT, "agency", "config.json"), encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        self.assertEqual(cfg["stopUsd"], 50)
+        with open(os.path.join(ROOT, ".github", "workflows", "robo.yml"), encoding="utf-8") as fh:
+            wf = fh.read()
+        self.assertIn("secrets.MT5_KEY", wf)          # the key lives in GitHub secrets, never in the code
+        self.assertIn("agency/painel.html", wf)
 
 
 if __name__ == "__main__":

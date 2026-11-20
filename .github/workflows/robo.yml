@@ -1,0 +1,55 @@
+# The Robo Pregao Virtual, every hour on GitHub (free for public repositories):
+# reads the market, sends the signed plan and orders to the MT5 robot, sends the
+# owner's phone alerts and publishes the page (agency/painel.html) with the reading
+# on the gh-pages branch (GitHub Pages).
+name: Robo Pregao Virtual
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["agency/**", ".github/workflows/robo.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: robo-pregao
+  cancel-in-progress: false
+
+jobs:
+  leitura:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Leitura anterior
+        run: |
+          if git fetch --depth 1 origin gh-pages; then git show origin/gh-pages:state.json > /tmp/prev.json || true; fi
+
+      - name: Leitura do mercado e ordens para o robo
+        env:
+          MT5_KEY: ${{ secrets.MT5_KEY }}
+        run: |
+          mkdir -p site
+          run() { node agency/brain.js --every-hours 1 --config agency/config.json --prev /tmp/prev.json --send-orders --alerts --out site/state.json; }
+          run || { sleep 30; run; }
+
+      - name: Publicar a pagina
+        run: |
+          cp agency/painel.html site/index.html
+          touch site/.nojekyll
+          cd site
+          git init -q -b gh-pages
+          git config user.name "robo-pregao"
+          git config user.email "robo-pregao@users.noreply.github.com"
+          git add -A
+          git commit -qm "leitura $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages

@@ -1,0 +1,7 @@
+{
+  "capital": 100000,
+  "stopUsd": 50,
+  "followMt5": true,
+  "testOrder": "",
+  "symbols": { "BTC": "BTCUSD", "XAU": "XAUUSD" }
+}
