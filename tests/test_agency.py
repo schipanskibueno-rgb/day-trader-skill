@@ -91,6 +91,12 @@ out.alerts = [B.alerts({ mt5: g1, command: { orders: [] } }, { mt5: g2, command:
               B.alerts({ mt5: g2, command: { orders: [ord] } }, { mt5: g2, command: { sent: true, orders: [ord] } }, now).length,
               B.alerts({ mt5: g2 }, { mt5: { connected: false } }, now).map(a => a.title)];
 
+// the virtual account keeps old trades that fell out of the candle window, without counting any twice
+const tr = (a, e, r) => ({ asset: a, dir: 1, entryT: e, exitT: e + 1, r, usd: r * 50 });
+const merged = B.mergeLedger([tr("BTC", 10, -1), tr("BTC", 500, 3)], [tr("BTC", 500, 3), tr("XAU", 600, -1)], 400);
+const sumL = B.ledgerSummary(merged, { capital: 1000, block: 25 });
+out.ledger = [merged.length, sumL.n, sumL.wins, sumL.pnl, sumL.equity, sumL.maxDD];
+
 out.tone = [B.tone("Ibovespa dispara e bate recorde"), B.tone("Bitcoin despenca com medo de recessao"), B.tone("Mercado aguarda decisao do Fed")];
 out.tags = B.tagsOf("Lula reeleito: dolar dispara", "Politica");
 out.climate = [B.climate([{id: "^GSPC", chg5d: 0.02}, {id: "^VIX", price: 14}, {id: "DX-Y.NYB", chg5d: -0.01}]).label,
@@ -160,6 +166,9 @@ class Agency(unittest.TestCase):
         self.assertEqual(first, ["Agencia mandou uma ordem", "Operacao encerrada no lucro", "Corretora recusou uma ordem"])
         self.assertEqual(repeat, 0)
         self.assertEqual(gone, ["Robo sem noticias"])
+
+    def test_virtual_account_ledger(self):
+        self.assertEqual(self.out["ledger"], [3, 3, 1, 50, 1050, 50])
 
     def test_brain_helpers(self):
         self.assertEqual(self.out["tone"], [1, -1, 0])

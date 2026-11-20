@@ -25,6 +25,12 @@ foi **desativada** em 2026-11-11 e nao deve ser religada.
 - Avisos no celular: app ntfy, canal `pregao-virtual-a224d58b32c0-avisos`
   (ordem enviada, operacao aberta/encerrada, recusa com explicacao, robo sem
   noticias, Algo Trading desligado, mesa fechada).
+- **Sem computador externo** (pedido do usuario em 2026-11-20): o robo opera a
+  **conta virtual da agencia** (`st.paper`, historico em `st.ledger`, guardado de
+  uma leitura para a outra via `--prev`), com precos reais e custos do MT5. O MT5
+  ficou opcional: se o robo do MT5 voltar a mandar resumos, a pagina mostra.
+- Proximo passo para dinheiro real: corretora por API (sem computador), so
+  depois de um bloco de 25 operacoes positivo.
 - A agencia 3D (`agency/agencia.html`) e o Radar ficam no repositorio, mas nao
   sao mais atualizados.
 - Corretora: MetaQuotes-Demo **nao tem Bitcoin** (o "BTC" de la e um fundo de

@@ -238,6 +238,26 @@ function slimTrade(t, m) {
            notional: round(t.notional, 0), size: t.size, dec: m.dec, consult: t.consult || null };
 }
 
+// the agency's virtual account: every closed trade is kept from one reading to the next, so its
+// history outlives the 60 days of candles each reading downloads
+function ledgerKey(t) { return t.asset + "|" + t.entryT + "|" + t.dir; }
+function mergeLedger(old, now, windowStart) {
+  const fresh = new Set(now.map(ledgerKey));
+  return (old || []).filter(t => !fresh.has(ledgerKey(t)) && t.entryT < windowStart).concat(now).sort((a, b) => a.exitT - b.exitT);
+}
+function ledgerSummary(ledger, cfg) {
+  let eq = cfg.capital, peak = eq, dd = 0;
+  const curve = [], blocks = [];
+  ledger.forEach(t => { eq += t.usd; peak = Math.max(peak, eq); dd = Math.max(dd, peak - eq); curve.push({ t: t.exitT, eq: round(eq, 2) }); });
+  for (let k = 0; k < ledger.length; k += cfg.block) {
+    const part = ledger.slice(k, k + cfg.block);
+    blocks.push({ n: part.length, wins: part.filter(t => t.r > 0).length, usd: round(part.reduce((a, t) => a + t.usd, 0), 2), done: part.length === cfg.block });
+  }
+  const n = ledger.length, wins = ledger.filter(t => t.r > 0).length;
+  return { n, wins, winRate: n ? round(wins / n * 100, 0) : 0, expectancy: n ? round(ledger.reduce((a, t) => a + t.r, 0) / n, 2) : 0,
+           pnl: round(eq - cfg.capital, 2), equity: round(eq, 2), maxDD: round(dd, 2), blocks, curve: curve.slice(-200) };
+}
+
 function deskSummary(d, byId, cfg) {
   return { n: d.n, wins: d.wins, winRate: round(d.winRate * 100, 0), expectancy: round(d.expectancy, 2),
            pnl: round(d.pnl, 2), equity: round(d.equity, 2), maxDD: round(d.maxDD, 2),
@@ -657,6 +677,20 @@ function alerts(prev, st, now) {
   const side = d => (d > 0 ? "COMPRA" : "VENDA");
   const key = x => x.s + "|" + x.t;
   const seen = (list, x) => (list || []).some(y => key(y) === key(x));
+  // the agency's virtual account
+  const pp = (prev && prev.paper) || null, NP = st.paper || null, pk = t => t.asset + "|" + t.entryT + "|" + t.dir;
+  if (pp && NP) {
+    const wasOpen = new Set((pp.open || []).map(pk)), wasClosed = new Set((prev.ledger || []).map(pk));
+    const nm = k => (k === "BTC" ? "Bitcoin" : k === "XAU" ? "ouro" : k);
+    NP.open.filter(t => !wasOpen.has(pk(t))).forEach(t =>
+      add("Conta virtual: operacao aberta", (t.dir > 0 ? "COMPRA" : "VENDA") + " de " + nm(t.asset) + " a " + t.entry + ", stop " + round(t.stop, t.dec) +
+          ", alvo " + round(t.take, t.dec) + ". Risco de US$ " + st.config.stopUsd + ".", ["chart_with_upwards_trend"], 4));
+    (st.ledger || []).filter(t => !wasClosed.has(pk(t))).forEach(t =>
+      add(t.usd >= 0 ? "Conta virtual: lucro" : "Conta virtual: stop",
+          (t.dir > 0 ? "Compra" : "Venda") + " de " + nm(t.asset) + " fechou " + (t.result === "alvo" ? "no alvo" : t.result === "stop" ? "no stop" : "") +
+          " com " + (t.usd >= 0 ? "ganho" : "perda") + " de US$ " + Math.abs(t.usd).toFixed(2) + ". Saldo virtual: US$ " + NP.equity.toFixed(2) + ".",
+          [t.usd >= 0 ? "moneybag" : "small_red_triangle_down"], 4));
+  }
   // the agency's own orders
   const sentBefore = new Set(((prev && prev.command && prev.command.orders) || []).map(o => o.id));
   if (st.command && st.command.sent) st.command.orders.filter(o => !sentBefore.has(o.id)).forEach(o =>
@@ -709,6 +743,7 @@ async function main() {
   const now = Date.now(), founded = Date.parse(FOUNDED + "T00:00:00Z"), errors = [];
   const byId = {}, live = [], sim = [], study = [], labRuns = { v1: [], v2: [], v2macro: [] }, markets = [], series15 = {};
   const live2 = [], sim2 = [], charts = {}, consults = {};
+  let windowStart = 0;                   // the oldest moment every traded market has candles for
 
   for (const m of MARKETS) {
     try {
@@ -725,6 +760,7 @@ async function main() {
       labRuns.v2macro.push(run(b5, v2.trades));
       let one = null, openTrade = null;
       if (m.trade) {
+        if (b5.length) windowStart = Math.max(windowStart, b5[0].t);
         sim.push(run(b5, v2.trades));
         const mine = run(b5, v2.trades.filter(t => b5[t.entryIdx].t >= founded));
         live.push(mine);
@@ -786,6 +822,10 @@ async function main() {
     charts, mt5,
     lab, people: PEOPLE, backtest: BACKTEST
   };
+  const lean = t => { const x = slimTrade(t, byId[t.market]); delete x.consult; return x; };
+  st.ledger = mergeLedger(prev && prev.ledger, L.closed.map(lean), windowStart);
+  st.paper = Object.assign({ start: FOUNDED, capital: cfg.capital }, ledgerSummary(st.ledger, cfg),
+    { open: L.open.map(lean), closed: st.ledger.slice(-30).reverse() });
   st.desk.sim.closed = st.desk.sim.closed.slice(0, 15);
   st.desk.study.closed = st.desk.study.closed.slice(0, 10);
   st.desk.study.curve = st.desk.study.curve.slice(-80);
@@ -830,4 +870,4 @@ async function main() {
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
 module.exports = { tone, tagsOf, climate, decode, marketOpen, profileOf, readConfig, reactions, liquidity, radarAt, cleanMt5, mt5Robot,
-                   deskPlan, testOrder, commandText, explainRefusal, alerts };
+                   deskPlan, testOrder, commandText, explainRefusal, alerts, mergeLedger, ledgerSummary };

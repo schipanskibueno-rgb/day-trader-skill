@@ -97,7 +97,7 @@ footer { margin-top: 32px; }
   <section id="previsao"><h2>Previsão</h2><div id="forecast"></div></section>
 
   <footer class="note">
-    Conta demo, dinheiro de teste. A página é atualizada sozinha a cada hora pela agência, que roda de graça no GitHub.
+    Conta virtual, dinheiro de teste, preços reais. A página é atualizada sozinha a cada hora pela agência, que roda de graça no GitHub, sem computador ligado.
     Nada aqui é recomendação de investimento, e resultado passado não garante resultado futuro.
   </footer>
 </main>
@@ -152,25 +152,21 @@ function signCls(v) { return v > 0 ? "pos" : v < 0 ? "neg" : null; }
 let S = null;
 
 function robot() { return S.mt5 || { connected: false }; }
-function robotFresh() { const r = robot(); return r.connected && !r.stale; }
-function missingAtBroker(k) {
-  const r = robot(), sym = (S.command && S.command.plan || []).find(p => p.short === k);
-  return !!(r.connected && sym && (r.st || []).some(l => l.indexOf(sym.sym + ":") === 0 && l.indexOf("nao existe") >= 0));
+function paper() {
+  const cap = (S.config || {}).capital || 0;
+  return Object.assign({ n: 0, wins: 0, winRate: 0, expectancy: 0, pnl: 0, equity: cap, capital: cap, maxDD: 0, open: [], closed: [], curve: [] }, S.paper || {});
 }
+const startDay = () => String((S.paper && S.paper.start) || S.founded || "").split("-").reverse().join("/");
+const resultWord = r => (r === "alvo" ? "alvo" : r === "stop" ? "stop" : r || "—");
 
 // ------------------------------------------------------------------ what the robot says
 function talk() {
-  const box = $("talk"), r = robot(), out = [];
-  const plan = (S.command && S.command.plan) || [];
-  if (!r.connected) out.push("Não estou conseguindo falar com o MetaTrader 5: não chegou nenhum resumo do robô nas últimas 12 horas. O computador precisa estar ligado, com o MT5 aberto e o robô no gráfico.");
-  else if (r.stale) out.push("O último recado do MetaTrader 5 chegou " + ago(r.at) + ". Confira se o computador e o MT5 continuam ligados.");
-  else {
-    out.push("Estou conectado à conta " + (r.demo ? "demo" : "REAL") + " " + r.acc + ". Saldo: " + usd(r.bal) + (r.eq !== r.bal ? ", patrimônio agora " + usd(r.eq) : "") + ".");
-    if (String(r.agency).indexOf("falta a chave") >= 0) out.push("Falta a chave da agência nas Entradas do robô no MT5. Sem ela, eu não opero.");
-    if (!r.algo) out.push("O botão Algo Trading do MT5 está desligado: assim eu não consigo operar.");
-    if (r.open === false) out.push("Hoje já tomei 2 stops, então parei até amanhã, como manda o gerenciamento.");
-  }
-  (r.pos || []).forEach(p => out.push("Tenho uma " + sideWord(p.d) + " aberta em " + symName(p.s) + ": entrada " + p.p + ", stop " + p.sl + ", alvo " + p.tp + ". Resultado agora: " + usd(p.pl) + "."));
+  const box = $("talk"), P = paper(), out = [], plan = (S.command && S.command.plan) || [], today = (S.desk && S.desk.today) || {};
+  out.push("Eu opero a conta virtual da agência: dinheiro de teste, com os preços reais do Bitcoin e do ouro, 24 horas por dia. Comecei em " +
+    startDay() + " com " + usd(P.capital, 0) + ". Saldo agora: " + usd(P.equity) + " (resultado de " + usd(P.pnl) + ").");
+  P.open.forEach(t => out.push("Tenho uma " + sideWord(t.dir) + " aberta em " + nameOf(t.asset) + ": entrada " + nf(t.entry, t.dec) + ", stop " +
+    nf(t.stop, t.dec) + ", alvo " + nf(t.take, t.dec) + (t.openUsd != null ? ". Resultado agora: " + usd(t.openUsd) : "") + "."));
+  if (today.closed) out.push("Hoje já tomei 2 stops, então parei até amanhã, como manda o gerenciamento.");
   plan.forEach(p => {
     const n = nameOf(p.short), why = pt(p.why);
     if (p.allow === "BUY") out.push(n + ": só procuro compras (" + why + ").");
@@ -178,27 +174,45 @@ function talk() {
     else if (p.allow === "BOTH") out.push(n + ": compras e vendas liberadas (" + why + ").");
     else out.push(n + ": não opero agora, porque " + why.replace(/^recusado: /, "") + ".");
   });
-  const last = (r.res || [])[r.res ? r.res.length - 1 : 0];
-  if (last) out.push("Último recado sobre as ordens: " + pt(last) + ".");
-  if (r.connected && r.n > 0) out.push("Até agora encerrei " + r.n + " operaç" + (r.n === 1 ? "ão" : "ões") + ", com " + r.w + " no lucro. Resultado somado: " + usd(r.sum) + ".");
-  else if (r.connected) out.push("Ainda não fiz nenhuma operação. Só entro quando o preço limpa a liquidez e forma o POI no lado que a agência liberou.");
+  if (P.n > 0) out.push("Já fechei " + P.n + " operaç" + (P.n === 1 ? "ão" : "ões") + ", " + P.wins + " no lucro. Só entro quando o preço limpa a liquidez e forma o POI a favor da tendência de 1 hora, então opero poucas vezes por mês.");
+  else out.push("Ainda não fechei nenhuma operação. Só entro quando o preço limpa a liquidez e forma o POI a favor da tendência de 1 hora, então opero poucas vezes por mês.");
+  const r = robot();
+  if (r.connected && !r.stale) out.push("Também estou ligado ao MetaTrader 5 (conta " + (r.demo ? "demo" : "REAL") + " " + r.acc + ", saldo " + usd(r.bal) + ").");
   box.textContent = "";
   out.forEach(t => para(box, t));
 }
 
+// the balance of the virtual account over time, drawn without any HTML from the data
+function curve(P) {
+  const pts = [{ t: 0, eq: P.capital }].concat(P.curve || []);
+  if (pts.length < 2) return null;
+  const W = 600, H = 120, lo = Math.min.apply(null, pts.map(p => p.eq)), hi = Math.max.apply(null, pts.map(p => p.eq)), span = (hi - lo) || 1;
+  const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.setAttribute("width", "100%"); svg.setAttribute("height", "120");
+  svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "Saldo da conta virtual a cada operação");
+  const y = v => (H - 8 - (v - lo) / span * (H - 16)).toFixed(1), x = i => (i / (pts.length - 1) * (W - 8) + 4).toFixed(1);
+  const base = document.createElementNS(ns, "line");
+  base.setAttribute("x1", 4); base.setAttribute("x2", W - 4); base.setAttribute("y1", y(P.capital)); base.setAttribute("y2", y(P.capital));
+  base.setAttribute("stroke", "var(--line)"); base.setAttribute("stroke-dasharray", "4 4"); base.setAttribute("vector-effect", "non-scaling-stroke"); svg.append(base);
+  const line = document.createElementNS(ns, "polyline");
+  line.setAttribute("points", pts.map((p, i) => x(i) + "," + y(p.eq)).join(" "));
+  line.setAttribute("fill", "none"); line.setAttribute("stroke", P.pnl >= 0 ? "var(--pos)" : "var(--neg)"); line.setAttribute("stroke-width", "2.5"); line.setAttribute("vector-effect", "non-scaling-stroke");
+  svg.append(line);
+  return svg;
+}
+
 // ------------------------------------------------------------------ Avanço
 function progress() {
-  const box = $("progress"), r = robot(), cfg = S.config || {}, block = cfg.block || 25;
+  const box = $("progress"), P = paper(), cfg = S.config || {}, block = cfg.block || 25, r = robot();
   box.textContent = "";
   const steps = [
-    [Date.now() - S.updatedAt < 2 * 3600e3 ? "ok" : "no", "Agência lendo o mercado de hora em hora", "Última leitura " + ago(S.updatedAt) + "."],
-    [robotFresh() ? "ok" : "no", "Robô do MT5 conectado", r.connected ? "Último resumo " + ago(r.at) + "." : "Nenhum resumo nas últimas 12 horas."],
-    [r.connected && String(r.agency).indexOf("plano valido") >= 0 ? "ok" : r.connected ? "no" : "wait", "Chave da agência no robô", r.connected ? pt(String(r.agency).replace(/^agencia: /, "")) : "Aguardando o robô."],
-    [r.connected ? (r.demo ? "ok" : "no") : "wait", "Conta demo (dinheiro de teste)", r.connected ? (r.demo ? "Conta demo " + r.acc + "." : "ATENÇÃO: conta real.") : "Aguardando o robô."],
-    [r.connected ? (missingAtBroker("BTC") ? "no" : "ok") : "wait", "Bitcoin disponível na corretora", missingAtBroker("BTC") ? "Esta corretora não tem Bitcoin. É no Bitcoin que o método foi melhor nos testes." : r.connected ? "Bitcoin disponível." : "Aguardando o robô."],
-    [r.n > 0 || (r.pos || []).length ? "ok" : "wait", "Primeira operação", r.n > 0 ? r.n + " encerrada(s)." : (r.pos || []).length ? "Em andamento." : "Ainda não aconteceu."],
+    [Date.now() - S.updatedAt < 2 * 3600e3 ? "ok" : "no", "Agência lendo o mercado sozinha, de hora em hora", "Roda de graça no GitHub, sem computador ligado. Última leitura " + ago(S.updatedAt) + "."],
+    ["ok", "Conta virtual operando 24 horas", "Desde " + startDay() + ", com preços reais e o custo da corretora descontado."],
+    [P.n > 0 || P.open.length ? "ok" : "wait", "Primeira operação", P.n > 0 ? P.n + " encerrada(s)." : P.open.length ? "Em andamento." : "Ainda não aconteceu."],
+    [P.n >= block ? "ok" : "wait", "Primeiro bloco de " + block + " operações", P.n >= block ? "Bloco completo: dá para julgar o método." : P.n + " de " + block + ". É o mínimo para julgar se o método ganha."],
+    ["wait", "Corretora para dinheiro real (opcional, no futuro)", "Também sem computador: ligamos uma corretora pela internet (API). Só depois de um bloco de " + block + " no positivo."],
   ];
-  const c1 = card("Etapas para o robô operar sozinho"), ul = el("ul", "steps");
+  const c1 = card("Etapas"), ul = el("ul", "steps");
   steps.forEach(([st, t, d]) => {
     const li = el("li"), m = el("span", "mark " + st, st === "ok" ? "✓" : st === "no" ? "!" : "…"), txt = el("div");
     m.setAttribute("aria-label", st === "ok" ? "feito" : st === "no" ? "falta" : "aguardando");
@@ -206,34 +220,42 @@ function progress() {
   });
   c1.append(ul); box.append(c1);
 
-  const g = el("div", "grid");
-  const n = r.n || 0, inBlock = n % block, c2 = card("Robô no MT5");
-  c2.append(el("div", "big " + (signCls(r.sum) || ""), usd(r.sum || 0)), el("div", "small muted", "resultado somado das operações encerradas"));
-  c2.append(kv([["Operações encerradas", String(n)], ["No lucro", n ? r.w + " (" + Math.round(r.w / n * 100) + "%)" : "0"],
-                ["Saldo da conta", r.connected ? usd(r.bal) : "—"], ["Stops hoje", r.connected ? r.stops + " de 2" : "—"]]));
-  c2.append(el("div", "small muted", "Bloco atual: " + inBlock + " de " + block + " operações (o método é julgado a cada " + block + ")"));
+  const c2 = card("Conta virtual da agência");
+  c2.append(el("div", "big", usd(P.equity)), el("div", "small " + (signCls(P.pnl) || "muted"), "resultado " + usd(P.pnl) + " desde " + startDay() + " (começou com " + usd(P.capital, 0) + ")"));
+  const svg = curve(P); if (svg) c2.append(svg);
+  c2.append(kv([["Operações encerradas", String(P.n)], ["No lucro", P.n ? P.wins + " (" + P.winRate + "%)" : "0"],
+                ["Média por operação", nf(P.expectancy, 2) + "R"], ["Maior queda", usd(-(P.maxDD || 0), 0)]]));
+  const inBlock = P.n % block;
+  c2.append(el("div", "small muted", "Bloco atual: " + inBlock + " de " + block + " operações"));
   const bar = el("div", "bar"), fill = el("i"); fill.style.width = Math.round(inBlock / block * 100) + "%"; bar.append(fill); c2.append(bar);
-  g.append(c2);
+  box.append(c2);
 
-  const L = (S.desk && S.desk.live) || {}, c3 = card("Mesa de papel da agência");
-  c3.append(el("div", "big " + (signCls(L.pnl) || ""), usd(L.pnl || 0)), el("div", "small muted", "mesmo método, simulado com preços reais desde " + (S.founded || "").split("-").reverse().join("/")));
-  c3.append(kv([["Operações", String(L.n || 0)], ["Taxa de acerto", (L.winRate || 0) + "%"], ["Média por operação", nf(L.expectancy || 0, 2) + "R"], ["Maior queda", usd(-(L.maxDD || 0), 0)]]));
-  g.append(c3);
-  box.append(g);
-
-  if ((r.deals || []).length) {
+  if (P.open.length) {
+    const c3 = card("Operação aberta agora"), ul3 = el("ul", "plain");
+    P.open.forEach(t => ul3.append(el("li", null, sideWord(t.dir) + " de " + nameOf(t.asset) + " desde " + brt(t.entryT) + ": entrada " + nf(t.entry, t.dec) +
+      ", stop " + nf(t.stop, t.dec) + ", alvo " + nf(t.take, t.dec) + (t.openUsd != null ? " · agora " + usd(t.openUsd) : ""))));
+    c3.append(ul3); box.append(c3);
+  }
+  if (P.closed.length) {
     const c4 = card("Últimas operações encerradas"), t = el("table"), h = el("tr");
-    ["Quando", "Ativo", "Lado", "Resultado"].forEach((x, i) => h.append(el("th", i === 3 ? "num" : null, x)));
+    ["Fechou em", "Ativo", "Lado", "Saída", "Resultado"].forEach((x, i) => h.append(el("th", i === 4 ? "num" : null, x)));
     t.append(h);
-    r.deals.forEach(d => { const tr = el("tr"); tr.append(el("td", null, d.t ? brt(d.t) : "—"), el("td", null, symName(d.s)), el("td", null, sideWord(d.d)), el("td", "num " + (signCls(d.pl) || ""), usd(d.pl))); t.append(tr); });
+    P.closed.slice(0, 12).forEach(d => { const tr = el("tr"); tr.append(el("td", null, d.exitT ? brt(d.exitT) : "—"), el("td", null, nameOf(d.asset)),
+      el("td", null, sideWord(d.dir)), el("td", null, resultWord(d.result)), el("td", "num " + (signCls(d.usd) || ""), usd(d.usd))); t.append(tr); });
     c4.append(wrap(t)); box.append(c4);
   }
-  const msgs = (r.res || []).slice().reverse(), rej = r.rej || [];
-  if (msgs.length || rej.length) {
-    const c5 = card("Ordens da agência e respostas do MT5"), ul2 = el("ul", "plain");
-    msgs.forEach(m => ul2.append(el("li", m.indexOf("EXECUTADA") >= 0 ? "pos" : m.indexOf("RECUSADA") >= 0 ? "neg" : null, pt(m))));
-    rej.forEach(x => ul2.append(el("li", "neg", "Recusada pela corretora: " + symName(x.s) + (x.t ? " em " + brt(x.t) : "") + " — " + pt(x.why || x.c))));
-    c5.append(ul2); box.append(c5);
+  if (r.connected) {
+    const c5 = card("MetaTrader 5 (opcional)");
+    c5.append(kv([["Situação", r.stale ? "sem notícias " + ago(r.at) : "conectado"], ["Conta", (r.demo ? "demo " : "REAL ") + r.acc], ["Saldo", usd(r.bal)],
+                  ["Operações encerradas", String(r.n || 0)], ["Resultado", usd(r.sum || 0), signCls(r.sum)]]));
+    const msgs = (r.res || []).slice().reverse(), rej = r.rej || [];
+    if (msgs.length || rej.length) {
+      const ul2 = el("ul", "plain");
+      msgs.forEach(m => ul2.append(el("li", m.indexOf("EXECUTADA") >= 0 ? "pos" : m.indexOf("RECUSADA") >= 0 ? "neg" : null, pt(m))));
+      rej.forEach(x => ul2.append(el("li", "neg", "Recusada pela corretora: " + symName(x.s) + (x.t ? " em " + brt(x.t) : "") + " — " + pt(x.why || x.c))));
+      c5.append(ul2);
+    }
+    box.append(c5);
   }
 }
 
@@ -303,7 +325,7 @@ function returns() {
   }
   const sim = (S.desk && S.desk.sim) || {};
   if (sim.n) para(c3, "Últimos 60 dias, simulado pela agência: " + sim.n + " operações, " + sim.winRate + "% de acerto, média de " + nf(sim.expectancy, 2) + "R por operação (" + usd(sim.pnl, 0) + ").", "small");
-  para(c3, "R = quantas vezes o stop. +0,37R por operação, com stop de " + usd(stop, 0) + ", dá cerca de " + usd(0.37 * stop, 0) + " por operação em média. Os testes ainda não provaram uma vantagem: um ano foi positivo e o outro negativo. Por isso seguimos na conta demo até fechar pelo menos um bloco de " + block + " operações no MT5.", "note");
+  para(c3, "R = quantas vezes o stop. +0,37R por operação, com stop de " + usd(stop, 0) + ", dá cerca de " + usd(0.37 * stop, 0) + " por operação em média. Os testes ainda não provaram uma vantagem: um ano foi positivo e o outro negativo. Por isso seguimos com dinheiro de teste até fechar pelo menos um bloco de " + block + " operações.", "note");
   box.append(c3);
 }
 
