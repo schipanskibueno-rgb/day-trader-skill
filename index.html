@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robô Pregão Virtual</title>
+<meta name="description" content="O robô da agência Pregão Virtual: avanço, mercado de hoje, rendimentos possíveis e previsão.">
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --ink: #1c2230; --muted: #5d6677; --line: #e2e5eb;
+  --accent: #2f6fdf; --pos: #138a4b; --neg: #c8322f; --warn: #b26a00; --soft: #eef2fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151c; --card: #1a2029; --ink: #e8ecf2; --muted: #9aa4b5; --line: #2a3240;
+    --accent: #6b9bff; --pos: #3ccf7f; --neg: #ff6b67; --warn: #f0a83a; --soft: #1f2838;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151c; --card: #1a2029; --ink: #e8ecf2; --muted: #9aa4b5; --line: #2a3240;
+  --accent: #6b9bff; --pos: #3ccf7f; --neg: #ff6b67; --warn: #f0a83a; --soft: #1f2838;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 16px 16px 48px; }
+h1 { font-size: 1.35rem; margin: 0; }
+h2 { font-size: 1.15rem; margin: 28px 0 10px; }
+h3 { font-size: 1rem; margin: 0 0 6px; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+.small { font-size: .875rem; }
+.pos { color: var(--pos); } .neg { color: var(--neg); } .warn { color: var(--warn); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 10px 0; }
+.grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.grid .card { margin: 0; }
+header.robot { display: flex; gap: 14px; align-items: flex-start; }
+header.robot svg { flex: 0 0 64px; }
+.bubble { background: var(--soft); border-radius: 12px; padding: 12px 14px; margin-top: 8px; }
+.bubble p { margin: 0 0 8px; } .bubble p:last-child { margin: 0; }
+nav { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0; display: flex; gap: 8px; overflow-x: auto; }
+nav a { flex: none; text-decoration: none; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: .9rem; }
+.steps { list-style: none; padding: 0; margin: 0; }
+.steps li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.steps li:last-child { border-bottom: 0; }
+.mark { flex: 0 0 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 700; color: #fff; }
+.mark.ok { background: var(--pos); } .mark.no { background: var(--neg); } .mark.wait { background: var(--warn); }
+.bar { height: 10px; border-radius: 6px; background: var(--line); overflow: hidden; margin: 6px 0; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.big { font-size: 1.5rem; font-weight: 700; }
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.tw { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: .92rem; }
+th { color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; }
+tr.hl td { background: var(--soft); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.chip { font-size: .8rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.chip.up { border-color: var(--pos); color: var(--pos); } .chip.down { border-color: var(--neg); color: var(--neg); }
+.tag { display: inline-block; font-size: .8rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; color: #fff; }
+.tag.up { background: var(--pos); } .tag.down { background: var(--neg); } .tag.flat { background: var(--muted); }
+ul.plain { margin: 0; padding-left: 18px; }
+ul.plain li { margin: 4px 0; }
+.note { font-size: .875rem; color: var(--muted); }
+@media (max-width: 480px) { th, td { font-size: .82rem; padding: 6px 3px; } header.robot svg { flex-basis: 44px; width: 44px; height: 44px; } }
+#overlay { padding: 40px 16px; text-align: center; }
+footer { margin-top: 32px; }
+</style>
+</head>
+<body>
+<main>
+  <header class="robot card">
+    <svg width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Robô">
+      <line x1="32" y1="4" x2="32" y2="14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="32" cy="5" r="4" fill="var(--accent)"/>
+      <rect x="8" y="14" width="48" height="38" rx="12" fill="var(--soft)" stroke="currentColor" stroke-width="3"/>
+      <circle cx="23" cy="32" r="5" fill="var(--accent)"/><circle cx="41" cy="32" r="5" fill="var(--accent)"/>
+      <path d="M22 43 Q32 49 42 43" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+    <div style="flex:1;min-width:0">
+      <h1>Robô Pregão Virtual</h1>
+      <div class="small muted" id="when">carregando a última leitura…</div>
+      <div class="bubble" id="talk"><p>Um momento, estou abrindo a última leitura do mercado.</p></div>
+    </div>
+  </header>
+
+  <nav aria-label="Seções">
+    <a href="#avanco">Avanço</a><a href="#aprendizado">Aprendizado</a><a href="#mercado">Mercado hoje</a><a href="#rendimentos">Rendimentos</a><a href="#previsao">Previsão</a>
+  </nav>
+
+  <div id="overlay" hidden></div>
+
+  <section id="avanco"><h2>Avanço</h2><div id="progress"></div></section>
+  <section id="aprendizado"><h2>Aprendizado</h2><div id="learning"></div></section>
+  <section id="mercado"><h2>Mercado hoje</h2><div id="market"></div></section>
+  <section id="rendimentos"><h2>Rendimentos possíveis</h2><div id="returns"></div></section>
+  <section id="previsao"><h2>Previsão</h2><div id="forecast"></div></section>
+
+  <footer class="note">
+    Conta virtual, dinheiro de teste, preços reais. A página é atualizada sozinha a cada hora pela agência, que roda de graça no GitHub, sem computador ligado.
+    Nada aqui é recomendação de investimento, e resultado passado não garante resultado futuro.
+  </footer>
+</main>
+
+<script>
+"use strict";
+// the agency publishes its reading next to this page every hour
+const STATE_URL = () => "state.json?t=" + Date.now();
+const NAMES = { BTC: "Bitcoin", XAU: "Ouro", EUR: "Euro", GBP: "Libra", JPY: "Iene", AUD: "Dólar australiano", ETH: "Ethereum", SOL: "Solana",
+                XRP: "XRP", BNB: "BNB", DOGE: "Dogecoin", ADA: "Cardano", AVAX: "Avalanche", LINK: "Chainlink" };
+const $ = id => document.getElementById(id);
+const nf = (v, d) => Number(v).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const usd = (v, d) => (v < 0 ? "-US$ " : "US$ ") + nf(Math.abs(v), d === undefined ? 2 : d);
+const pct = (v, d) => (v >= 0 ? "+" : "") + nf(v, d === undefined ? 2 : d) + "%";
+const brt = t => new Date(t).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const hour = t => new Date(t).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 2 ? "agora" : m < 60 ? "há " + m + " min" : m < 2880 ? "há " + Math.round(m / 60) + " h" : "há " + Math.round(m / 1440) + " dias"; };
+const nameOf = k => NAMES[k] || k;
+const symName = s => { s = String(s || ""); return s.indexOf("BTC") === 0 ? "Bitcoin" : s.indexOf("XAU") === 0 || s.indexOf("GOLD") === 0 ? "Ouro" : s; };
+const sideWord = d => (d > 0 ? "compra" : "venda");
+const trendWord = b => (b > 0 ? "alta" : b < 0 ? "queda" : "sem direção clara");
+
+// every value from the reading is written as text, never as HTML
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = text; return e; }
+function card(title) { const c = el("div", "card"); if (title) c.append(el("h3", null, title)); return c; }
+function kv(pairs) { const d = el("dl", "kv"); pairs.forEach(([a, b, cls]) => d.append(el("dt", null, a), el("dd", cls || null, b))); return d; }
+function para(parent, text, cls) { parent.append(el("p", cls || null, text)); }
+function link(text, url) {
+  if (!/^https?:\/\//.test(String(url || ""))) return el("span", null, text);
+  const a = el("a", null, text); a.href = url; a.target = "_blank"; a.rel = "noopener"; return a;
+}
+// the agency writes plain ASCII; put the accents back for reading
+const ACCENTS = [["nao", "não"], ["so", "só"], ["ja", "já"], ["direcao", "direção"], ["tendencia", "tendência"], ["sessao", "sessão"], ["regiao", "região"],
+  ["historico", "histórico"], ["posicao", "posição"], ["cotacao", "cotação"], ["distancia", "distância"], ["minima", "mínima"], ["proxima", "próxima"],
+  ["proximo", "próximo"], ["acumulacao", "acumulação"], ["distribuicao", "distribuição"], ["aversao", "aversão"], ["poi", "POI"],
+  ["robo", "robô"], ["agencia", "agência"], ["invalido", "inválido"], ["preco", "preço"], ["sao", "são"],
+  ["ultimo", "último"], ["indice", "índice"], ["dolar", "dólar"], ["petroleo", "petróleo"], ["medio", "médio"]];
+function pt(t) {
+  let s = String(t || "");
+  const cap = w => w.charAt(0).toUpperCase() + w.slice(1);
+  ACCENTS.forEach(([a, b]) => { s = s.replace(new RegExp("\\b" + a + "\\b", "g"), b).replace(new RegExp("\\b" + cap(a) + "\\b", "g"), cap(b)); });
+  return s;
+}
+// news titles sometimes arrive with HTML entities (even twice); decode them as plain text
+function unent(t) {
+  let s = String(t || "");
+  for (let i = 0; i < 2 && /&#?\w+;/.test(s); i++) s = new DOMParser().parseFromString(s, "text/html").documentElement.textContent;
+  return s;
+}
+function wrap(t) { const w = el("div", "tw"); w.append(t); return w; }
+function signCls(v) { return v > 0 ? "pos" : v < 0 ? "neg" : null; }
+
+let S = null;
+
+function robot() { return S.mt5 || { connected: false }; }
+function paper() {
+  const cap = (S.config || {}).capital || 0;
+  return Object.assign({ n: 0, wins: 0, winRate: 0, expectancy: 0, pnl: 0, equity: cap, capital: cap, maxDD: 0, open: [], closed: [], curve: [] }, S.paper || {});
+}
+const startDay = () => String((S.paper && S.paper.start) || S.founded || "").split("-").reverse().join("/");
+const COND_VALUE = { dir: { "1": "compras", "-1": "vendas" }, al: { "true": "a favor da tendência de 1h", "false": "contra ou sem a tendência de 1h" },
+  ses: { asia: "sessão da Ásia (21h–4h)", europa: "sessão da Europa (4h–10h)", eua: "sessão dos EUA (10h–18h)", noite: "fim do dia (18h–21h)" },
+  rad: { "1": "Radar de 15m a favor", "0": "Radar de 15m neutro", "-1": "Radar de 15m contra" } };
+function condName(rule) { const i = rule.indexOf("="), k = rule.slice(0, i), v = rule.slice(i + 1); return k === "mk" ? nameOf(v) : (COND_VALUE[k] && COND_VALUE[k][v]) || rule; }
+const resultWord = r => (r === "alvo" ? "alvo" : r === "stop" ? "stop" : r || "—");
+
+// ------------------------------------------------------------------ what the robot says
+function talk() {
+  const box = $("talk"), P = paper(), out = [], plan = (S.command && S.command.plan) || [], today = (S.desk && S.desk.today) || {};
+  out.push("Eu opero a conta virtual da agência em " + (P.markets || 14) + " mercados (criptomoedas, ouro e moedas), 24 horas por dia, com dinheiro de teste e preços reais. Comecei em " +
+    startDay() + " com " + usd(P.capital, 0) + ". Saldo agora: " + usd(P.equity) + " (resultado de " + usd(P.pnl) + ").");
+  P.open.forEach(t => out.push("Tenho uma " + sideWord(t.dir) + " aberta em " + nameOf(t.asset) + ": entrada " + nf(t.entry, t.dec) + ", stop " +
+    nf(t.stop, t.dec) + ", alvo " + nf(t.take, t.dec) + (t.openUsd != null ? ". Resultado agora: " + usd(t.openUsd) : "") + "."));
+  if (today.closed) out.push("Hoje já tomei 2 stops, então parei até amanhã, como manda o gerenciamento.");
+  plan.forEach(p => {
+    const n = nameOf(p.short), why = pt(p.why);
+    if (p.allow === "BUY") out.push(n + ": só procuro compras (" + why + ").");
+    else if (p.allow === "SELL") out.push(n + ": só procuro vendas (" + why + ").");
+    else if (p.allow === "BOTH") out.push(n + ": compras e vendas liberadas (" + why + ").");
+    else out.push(n + ": não opero agora, porque " + why.replace(/^recusado: /, "") + ".");
+  });
+  out.push((P.n > 0 ? "Já fechei " + P.n + " operaç" + (P.n === 1 ? "ão" : "ões") + ", " + P.wins + " no lucro. " : "Ainda não fechei nenhuma operação. ") +
+    "Entro em todo POI de 5 minutos depois da limpeza de liquidez, sem limite de stops por dia: são cerca de 2 operações por dia somando todos os mercados.");
+  const Lr = S.learning;
+  if (Lr) out.push(Lr.check.on ? "Meu aprendizado está ligado: deixei de entrar em " + Lr.rules.map(condName).join(", ") + ", porque isso perdeu de forma repetida e evitar melhorou o resultado."
+    : "Anoto as condições de cada operação (" + Lr.diary + " no meu diário). Ainda não mudei meu jeito de operar: até agora, aprender com os resultados teria piorado, e não melhorado. Só mudo quando a prova aparecer.");
+  const r = robot();
+  if (r.connected && !r.stale) out.push("Também estou ligado ao MetaTrader 5 (conta " + (r.demo ? "demo" : "REAL") + " " + r.acc + ", saldo " + usd(r.bal) + ").");
+  box.textContent = "";
+  out.forEach(t => para(box, t));
+}
+
+// the balance of the virtual account over time, drawn without any HTML from the data
+function curve(P) {
+  const pts = [{ t: 0, eq: P.capital }].concat(P.curve || []);
+  if (pts.length < 2) return null;
+  const W = 600, H = 120, lo = Math.min.apply(null, pts.map(p => p.eq)), hi = Math.max.apply(null, pts.map(p => p.eq)), span = (hi - lo) || 1;
+  const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.setAttribute("width", "100%"); svg.setAttribute("height", "120");
+  svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "Saldo da conta virtual a cada operação");
+  const y = v => (H - 8 - (v - lo) / span * (H - 16)).toFixed(1), x = i => (i / (pts.length - 1) * (W - 8) + 4).toFixed(1);
+  const base = document.createElementNS(ns, "line");
+  base.setAttribute("x1", 4); base.setAttribute("x2", W - 4); base.setAttribute("y1", y(P.capital)); base.setAttribute("y2", y(P.capital));
+  base.setAttribute("stroke", "var(--line)"); base.setAttribute("stroke-dasharray", "4 4"); base.setAttribute("vector-effect", "non-scaling-stroke"); svg.append(base);
+  const line = document.createElementNS(ns, "polyline");
+  line.setAttribute("points", pts.map((p, i) => x(i) + "," + y(p.eq)).join(" "));
+  line.setAttribute("fill", "none"); line.setAttribute("stroke", P.pnl >= 0 ? "var(--pos)" : "var(--neg)"); line.setAttribute("stroke-width", "2.5"); line.setAttribute("vector-effect", "non-scaling-stroke");
+  svg.append(line);
+  return svg;
+}
+
+// ------------------------------------------------------------------ Avanço
+function progress() {
+  const box = $("progress"), P = paper(), cfg = S.config || {}, block = cfg.block || 25, r = robot();
+  box.textContent = "";
+  const steps = [
+    [Date.now() - S.updatedAt < 2 * 3600e3 ? "ok" : "no", "Agência lendo o mercado sozinha, de hora em hora", "Roda de graça no GitHub, sem computador ligado. Última leitura " + ago(S.updatedAt) + "."],
+    ["ok", "Conta virtual operando 24 horas", "Desde " + startDay() + ", em " + (P.markets || 14) + " mercados, com preços reais e o custo da corretora descontado."],
+    [S.learning && S.learning.check.on ? "ok" : "wait", "Aprendizado com os resultados", S.learning ? (S.learning.check.on ? "Ligado: evitando o que perdeu de forma repetida." : "Anotando tudo; liga sozinho quando aprender provar que melhora o resultado.") : "Começa na próxima leitura."],
+    [P.n > 0 || P.open.length ? "ok" : "wait", "Primeira operação", P.n > 0 ? P.n + " encerrada(s)." : P.open.length ? "Em andamento." : "Ainda não aconteceu."],
+    [P.n >= block ? "ok" : "wait", "Primeiro bloco de " + block + " operações", P.n >= block ? "Bloco completo: dá para julgar o método." : P.n + " de " + block + ". É o mínimo para julgar se o método ganha."],
+    ["wait", "Corretora para dinheiro real (opcional, no futuro)", "Também sem computador: ligamos uma corretora pela internet (API). Só depois de um bloco de " + block + " no positivo."],
+  ];
+  const c1 = card("Etapas"), ul = el("ul", "steps");
+  steps.forEach(([st, t, d]) => {
+    const li = el("li"), m = el("span", "mark " + st, st === "ok" ? "✓" : st === "no" ? "!" : "…"), txt = el("div");
+    m.setAttribute("aria-label", st === "ok" ? "feito" : st === "no" ? "falta" : "aguardando");
+    txt.append(el("div", null, t), el("div", "small muted", d)); li.append(m, txt); ul.append(li);
+  });
+  c1.append(ul); box.append(c1);
+
+  const c2 = card("Conta virtual da agência");
+  c2.append(el("div", "big", usd(P.equity)), el("div", "small " + (signCls(P.pnl) || "muted"), "resultado " + usd(P.pnl) + " desde " + startDay() + " (começou com " + usd(P.capital, 0) + ")"));
+  const svg = curve(P); if (svg) c2.append(svg);
+  c2.append(kv([["Operações encerradas", String(P.n)], ["No lucro", P.n ? P.wins + " (" + P.winRate + "%)" : "0"],
+                ["Média por operação", nf(P.expectancy, 2) + "R"], ["Maior queda", usd(-(P.maxDD || 0), 0)]]));
+  const inBlock = P.n % block;
+  c2.append(el("div", "small muted", "Bloco atual: " + inBlock + " de " + block + " operações"));
+  const bar = el("div", "bar"), fill = el("i"); fill.style.width = Math.round(inBlock / block * 100) + "%"; bar.append(fill); c2.append(bar);
+  box.append(c2);
+
+  if (P.open.length) {
+    const c3 = card("Operação aberta agora"), ul3 = el("ul", "plain");
+    P.open.forEach(t => ul3.append(el("li", null, sideWord(t.dir) + " de " + nameOf(t.asset) + " desde " + brt(t.entryT) + ": entrada " + nf(t.entry, t.dec) +
+      ", stop " + nf(t.stop, t.dec) + ", alvo " + nf(t.take, t.dec) + (t.openUsd != null ? " · agora " + usd(t.openUsd) : ""))));
+    c3.append(ul3); box.append(c3);
+  }
+  if (P.closed.length) {
+    const c4 = card("Últimas operações encerradas"), t = el("table"), h = el("tr");
+    ["Fechou em", "Ativo", "Lado", "Saída", "Resultado"].forEach((x, i) => h.append(el("th", i === 4 ? "num" : null, x)));
+    t.append(h);
+    P.closed.slice(0, 12).forEach(d => { const tr = el("tr"); tr.append(el("td", null, d.exitT ? brt(d.exitT) : "—"), el("td", null, nameOf(d.asset)),
+      el("td", null, sideWord(d.dir)), el("td", null, resultWord(d.result)), el("td", "num " + (signCls(d.usd) || ""), usd(d.usd))); t.append(tr); });
+    c4.append(wrap(t)); box.append(c4);
+  }
+  if (r.connected) {
+    const c5 = card("MetaTrader 5 (opcional)");
+    c5.append(kv([["Situação", r.stale ? "sem notícias " + ago(r.at) : "conectado"], ["Conta", (r.demo ? "demo " : "REAL ") + r.acc], ["Saldo", usd(r.bal)],
+                  ["Operações encerradas", String(r.n || 0)], ["Resultado", usd(r.sum || 0), signCls(r.sum)]]));
+    const msgs = (r.res || []).slice().reverse(), rej = r.rej || [];
+    if (msgs.length || rej.length) {
+      const ul2 = el("ul", "plain");
+      msgs.forEach(m => ul2.append(el("li", m.indexOf("EXECUTADA") >= 0 ? "pos" : m.indexOf("RECUSADA") >= 0 ? "neg" : null, pt(m))));
+      rej.forEach(x => ul2.append(el("li", "neg", "Recusada pela corretora: " + symName(x.s) + (x.t ? " em " + brt(x.t) : "") + " — " + pt(x.why || x.c))));
+      c5.append(ul2);
+    }
+    box.append(c5);
+  }
+}
+
+// ------------------------------------------------------------------ Aprendizado
+function learning() {
+  const box = $("learning"), L = S.learning;
+  box.textContent = "";
+  if (!L) { para(box, "O diário de operações começa na próxima leitura.", "note"); return; }
+  const c1 = card(L.check.on ? "Aprendizado ligado" : "Aprendizado anotando, ainda sem mudar nada");
+  para(c1, "Cada operação fica no meu diário com as condições em que entrei: mercado, compra ou venda, se estava a favor da tendência de 1 hora, horário e o Radar de 15 minutos. " +
+    "Uma condição só vira regra (\"não entro mais nisso\") quando perdeu nas duas metades de pelo menos " + L.min + " operações. E o aprendizado só liga se, repassando o diário na ordem em que tudo aconteceu, seguir essas regras tivesse melhorado o resultado.");
+  c1.append(kv([["Operações no diário", L.diary + (L.study ? " (" + L.study + " de estudo, antes de " + startDay() + ")" : "")],
+                ["Média de todas", nf(L.check.allR, 2) + "R", signCls(L.check.allR)],
+                ["Média se tivesse seguido as regras", nf(L.check.takenR, 2) + "R", signCls(L.check.takenR)],
+                ["Regras ativas agora", L.rules.length ? L.rules.map(condName).join(", ") : "nenhuma"],
+                ["Operações evitadas pela conta", String(L.skipped || 0)]]));
+  if (!L.check.on) para(c1, "Por que ainda está desligado: " + (L.check.blocked < 30 ? "ainda não há condições com perda repetida suficientes para testar." : "seguir as regras teria dado " + nf(L.check.takenR, 2) + "R, contra " + nf(L.check.allR, 2) + "R sem elas.") +
+    " No teste do último ano, aprender assim piorou o resultado em todas as formas que testei: o que perdia num mês tendia a ganhar no seguinte.", "note");
+  box.append(c1);
+  const c2 = card("O que os números dizem até agora"), t = el("table"), h = el("tr");
+  ["Condição", "Operações", "Acerto", "Média"].forEach((x, i) => h.append(el("th", i ? "num" : null, x))); t.append(h);
+  let last = null;
+  L.table.forEach(r => {
+    if (r.cond !== last) { const tr = el("tr"), th = el("th", null, pt(L.labels[r.cond] || r.cond)); th.colSpan = 4; tr.append(th); t.append(tr); last = r.cond; }
+    const tr = el("tr"); tr.append(el("td", null, condName(r.cond + "=" + r.value)), el("td", "num", String(r.n)), el("td", "num", r.winRate + "%"),
+      el("td", "num " + (signCls(r.avgR) || ""), nf(r.avgR, 2) + "R")); t.append(tr);
+  });
+  c2.append(wrap(t));
+  para(c2, "Com poucas operações, a média engana: uma condição com 10 operações pode virar do lucro para o prejuízo no mês seguinte. Por isso as regras pedem pelo menos " + L.min + ".", "note");
+  box.append(c2);
+}
+
+// ------------------------------------------------------------------ Mercado hoje
+function market() {
+  const box = $("market"); box.textContent = "";
+  const cl = S.climate || {};
+  const c0 = card("Clima do mercado mundial");
+  para(c0, pt(cl.label || "sem leitura"), "big");
+  const rows = (S.global || []).concat(S.national || []);
+  if (rows.length) {
+    const t = el("table"), h = el("tr"); ["Indicador", "Preço", "Dia", "Semana"].forEach((x, i) => h.append(el("th", i ? "num" : null, x))); t.append(h);
+    rows.forEach(x => { const tr = el("tr"); tr.append(el("td", null, pt(x.name)), el("td", "num", nf(x.price, 2)), el("td", "num " + (signCls(x.chg1d) || ""), x.chg1d == null ? "—" : pct(x.chg1d * 100)), el("td", "num " + (signCls(x.chg5d) || ""), x.chg5d == null ? "—" : pct(x.chg5d * 100))); t.append(tr); });
+    c0.append(wrap(t));
+  }
+  box.append(c0);
+
+  const c1 = card("Mercados que o robô opera"), t1 = el("table"), h1 = el("tr");
+  ["Mercado", "Preço", "24 horas", "Tendência (1h)"].forEach((x, i) => h1.append(el("th", i ? "num" : null, x))); t1.append(h1);
+  (S.markets || []).forEach(m => { const tr = el("tr");
+    tr.append(el("td", null, nameOf(m.short) + (m.open ? "" : " (fechado)")), el("td", "num", nf(m.price, Math.min(m.dec, 5))),
+      el("td", "num " + (signCls(m.chg24h) || ""), pct(m.chg24h || 0)), el("td", "num", trendWord(m.macro ? m.macro.bias : 0))); t1.append(tr); });
+  c1.append(wrap(t1)); box.append(c1);
+
+  // market news first; plain politics only if nothing else came
+  const weight = n => (n.tags || []).filter(t => ["BTC", "Ouro", "Dolar", "Juros", "EUA", "Petroleo", "China", "Cripto"].indexOf(t) >= 0).length;
+  const news = (S.news || []).filter(n => !(n.tags || []).every(t => t === "Politica")).sort((a, b) => weight(b) - weight(a) || b.t - a.t).slice(0, 6);
+  if (news.length) {
+    const c = card("Notícias que movem o mercado"), ul = el("ul", "plain");
+    news.forEach(n => { const li = el("li"); li.append(link(unent(n.title), n.url), el("span", "small muted", " · " + n.source + (n.t ? " · " + ago(n.t) : ""))); ul.append(li); });
+    c.append(ul); box.append(c);
+  }
+}
+
+// ------------------------------------------------------------------ Rendimentos possíveis
+function returns() {
+  const box = $("returns"); box.textContent = "";
+  const cfg = S.config || {}, stop = cfg.stopUsd || 50, rr = cfg.rr || 3, block = cfg.block || 25, cap = cfg.capital || 0;
+  const c1 = card("As regras de cada operação");
+  c1.append(kv([["Perda se der stop", usd(-stop, 0), "neg"], ["Ganho se bater o alvo (" + rr + "x o risco)", usd(stop * rr, 0), "pos"],
+                ["Perda máxima num dia (2 stops)", usd(-stop * 2, 0) + (cap ? " = " + nf(stop * 2 / cap * 100, 2) + "% da conta" : "")],
+                ["Conta usada no cálculo", cap ? usd(cap, 0) : "—"]]));
+  para(c1, "Como o alvo é 3 vezes o stop, basta acertar 1 em cada 4 operações (25%) para empatar, antes dos custos da corretora.", "note");
+  box.append(c1);
+
+  const c2 = card("Num bloco de " + block + " operações"), t = el("table"), h = el("tr");
+  ["Acertos", "Erros", "Resultado", "% da conta"].forEach((x, i) => h.append(el("th", i ? "num" : null, x))); t.append(h);
+  [5, 6, 7, 8, 10, 12].map(w => Math.round(w * block / 25)).forEach(wins => {
+    const losses = block - wins, res = wins * stop * rr - losses * stop;
+    const tr = el("tr", res > 0 && res - stop * (rr + 1) <= 0 ? "hl" : null);
+    tr.append(el("td", null, wins + " de " + block + " (" + Math.round(wins / block * 100) + "%)"), el("td", "num", String(losses)), el("td", "num " + (signCls(res) || ""), usd(res, 0)), el("td", "num", cap ? pct(res / cap * 100) : "—"));
+    t.append(tr);
+  });
+  c2.append(wrap(t));
+  para(c2, "Linha destacada: o primeiro resultado no lucro. Com 6 acertos ainda se perde um pouco; o empate fica entre 6 e 7 acertos em 25. Esses são cenários, não promessas.", "note");
+  box.append(c2);
+
+  const B = S.backtest, c3 = card("O que os testes no histórico mostraram");
+  if (B && B.rows) {
+    const t2 = el("table"), h2 = el("tr"); ["Período", "Mercado", "Operações", "Média", "Em " + block + " operações"].forEach((x, i) => h2.append(el("th", i > 1 ? "num" : null, x))); t2.append(h2);
+    B.rows.forEach(x => { const per = x.expR * block * stop, tr = el("tr");
+      tr.append(el("td", null, pt(x.period)), el("td", null, x.market), el("td", "num", String(x.trades)), el("td", "num " + (signCls(x.expR) || ""), nf(x.expR, 2) + "R"), el("td", "num " + (signCls(per) || ""), usd(per, 0))); t2.append(tr); });
+    c3.append(wrap(t2));
+  }
+  const sim = (S.desk && S.desk.sim) || {};
+  if (sim.n) para(c3, "Últimos 60 dias, simulado pela agência: " + sim.n + " operações, " + sim.winRate + "% de acerto, média de " + nf(sim.expectancy, 2) + "R por operação (" + usd(sim.pnl, 0) + ").", "small");
+  para(c3, "R = quantas vezes o stop. +0,37R por operação, com stop de " + usd(stop, 0) + ", dá cerca de " + usd(0.37 * stop, 0) + " por operação em média. Os testes ainda não provaram uma vantagem: um ano foi positivo e o outro negativo. Por isso seguimos com dinheiro de teste até fechar pelo menos um bloco de " + block + " operações." + (B && B.learning ? " " + pt(B.learning) + "." : ""), "note");
+  box.append(c3);
+}
+
+// ------------------------------------------------------------------ Previsão
+function forecast() {
+  const box = $("forecast"); box.textContent = "";
+  const rank = (S.research && S.research.ranking) || [], plan = (S.command && S.command.plan) || [];
+  (S.markets || []).filter(m => m.trade).forEach(m => {
+    const ch = (S.charts || {})[m.short] || {}, rd = ch.reading || {}, rk = rank.find(x => x.asset === m.short) || {}, p = plan.find(x => x.short === m.short);
+    const bias = m.macro ? m.macro.bias : 0, votes = Object.keys(rd).reduce((a, k) => a + (rd[k].radar ? rd[k].radar.dir : 0), 0);
+    const dir = bias !== 0 ? bias : votes > 1 ? 1 : votes < -1 ? -1 : 0;
+    const c = card(nameOf(m.short));
+    const head = el("div"); head.append(el("span", "tag " + (dir > 0 ? "up" : dir < 0 ? "down" : "flat"), dir > 0 ? "ALTA" : dir < 0 ? "QUEDA" : "INDEFINIDO"),
+      el("span", "small muted", "  cenário mais provável para as próximas horas"));
+    c.append(head);
+    const chips = el("div", "chips");
+    ["2m", "5m", "10m", "15m"].forEach(k => { const x = rd[k]; if (!x) return; const d = x.radar ? x.radar.dir : x.flow;
+      chips.append(el("span", "chip " + (d > 0 ? "up" : d < 0 ? "down" : ""), k + ": " + (x.radar ? x.radar.code.toLowerCase() : x.word))); });
+    c.append(chips);
+    const lines = el("ul", "plain");
+    lines.append(el("li", null, "Tendência de 1 hora: " + trendWord(bias) + (rk.why && rk.why.length ? " (" + pt(rk.why.join(", ")) + ")" : "") + "."));
+    const lq = m.liquidity;
+    if (lq) {
+      if (lq.above) lines.append(el("li", null, "Liquidez acima (o preço costuma ir buscar): " + nf(lq.above, m.dec) + (lq.aboveAtr != null ? " (" + nf(lq.aboveAtr, 1) + " ATR)" : "") + "."));
+      if (lq.below) lines.append(el("li", null, "Liquidez abaixo: " + nf(lq.below, m.dec) + (lq.belowAtr != null ? " (" + nf(lq.belowAtr, 1) + " ATR)" : "") + "."));
+    }
+    const ctl = m.macro && m.macro.control;
+    if (ctl && ctl.level && bias !== 0) lines.append(el("li", null, "O cenário de " + trendWord(bias) + " perde força se o preço " + (bias > 0 ? "cair abaixo de " : "subir acima de ") + nf(ctl.level, m.dec) + "."));
+    const wy = ch.wyckoff;
+    if (wy) lines.append(el("li", null, "Preço andando de lado entre " + nf(wy.lo, m.dec) + " e " + nf(wy.hi, m.dec) + " (" + (wy.ctx === "acumulacao" ? "parece acumulação: favorece alta na saída" : wy.ctx === "distribuicao" ? "parece distribuição: favorece queda na saída" : "sem interesse claro: melhor esperar") + ")."));
+    if (p) lines.append(el("li", null, "O que o robô faz: " + (p.allow === "BUY" ? "só compras" : p.allow === "SELL" ? "só vendas" : p.allow === "BOTH" ? "compras e vendas" : "não opera") + " (" + pt(p.why) + ")."));
+    c.append(lines);
+    box.append(c);
+  });
+  const others = rank.filter(x => !(S.markets || []).some(m => m.trade && m.short === x.asset));
+  if (others.length) {
+    const c = card("Outros mercados que a agência observa"), ul = el("ul", "plain");
+    others.forEach(x => ul.append(el("li", null, nameOf(x.asset) + ": " + (x.dir > 0 ? "tendência de alta" : x.dir < 0 ? "tendência de queda" : "sem direção clara") + (x.why && x.why.length ? " (" + pt(x.why.join(", ")) + ")" : "") + ".")));
+    c.append(ul); box.append(c);
+  }
+  para(box, "A previsão vem dos gráficos de 1 hora, 15, 10, 5 e 2 minutos e da liquidez acumulada. É um cenário provável, não uma certeza: o stop existe exatamente para quando o mercado faz o contrário.", "note");
+}
+
+// ------------------------------------------------------------------ load
+function render() {
+  $("overlay").hidden = true;
+  $("when").textContent = "Leitura de " + brt(S.updatedAt) + " (Brasília)" + (S.nextAt ? " · próxima às " + hour(S.nextAt) : "");
+  [talk, progress, learning, market, returns, forecast].forEach(f => { try { f(); } catch (e) { console.error(e); } });
+}
+async function load() {
+  try {
+    const r = await fetch(STATE_URL(), { cache: "no-store" });
+    if (!r.ok) throw new Error(String(r.status));
+    const s = await r.json();
+    if (!S || s.updatedAt !== S.updatedAt) { S = s; render(); }
+  } catch (e) {
+    if (!S) { const o = $("overlay"); o.hidden = false; o.textContent = "Ainda não há leitura publicada. A agência publica uma nova a cada hora; volte em alguns minutos."; $("talk").textContent = "Ainda estou esperando a primeira leitura da agência."; }
+  }
+}
+load();
+setInterval(load, 120000);
+</script>
+</body>
+</html>
